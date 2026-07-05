@@ -36,7 +36,6 @@ jobs:
 
   detect-simplified:
     runs-on: ubuntu-latest
-    continue-on-error: true  # ADR-0251 P-LEAN:品質類降L1(nightly追),不阻commit
     if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v4
