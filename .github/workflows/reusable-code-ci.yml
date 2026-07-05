@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ inputs.python-version }}
-          cache: 'pip'
+          # cache: 'pip' 移除：無 requirements.txt/pyproject.toml 的 repo 會硬掛 setup（fleet CI 紅根因，2026-07-05）
       - name: Install deps
         run: |
           pip install pytest 2>/dev/null || true
