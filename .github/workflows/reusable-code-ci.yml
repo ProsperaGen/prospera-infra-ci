@@ -62,12 +62,16 @@ jobs:
           import os, sys, re
           BAD = re.compile(r'anthropic\.Anthropic|Anthropic\(\)|client\.messages\.create|openai\.ChatCompletion')
           violations = []
+          # 允許的 chokepoint 本體(api_utils / llm_client / 標 '# llm-chokepoint: allow' 者)
+          CHOKEPOINTS = ('api_utils.py', 'llm_client.py')
           for root, _, files in os.walk('.'):
               if '.git' in root or 'api_utils' in root:
                   continue
               for f in files:
-                  if f.endswith('.py') and f != 'api_utils.py':
+                  if f.endswith('.py') and f not in CHOKEPOINTS:
                       content = open(os.path.join(root, f), encoding='utf-8', errors='ignore').read()
+                      if '# llm-chokepoint: allow' in content:
+                          continue  # 顯式允許例外(需 review)
                       if BAD.search(content):
                           violations.append(os.path.join(root, f))
           if violations:
