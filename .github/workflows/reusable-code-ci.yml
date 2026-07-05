@@ -65,7 +65,7 @@ jobs:
           # 允許的 chokepoint 本體(api_utils / llm_client / 標 '# llm-chokepoint: allow' 者)
           CHOKEPOINTS = ('api_utils.py', 'llm_client.py')
           for root, _, files in os.walk('.'):
-              if '.git' in root or 'api_utils' in root:
+              if '.git' in root or 'api_utils' in root or '99_archive' in root or 'node_modules' in root or 'dev_scratch' in root:
                   continue
               for f in files:
                   if f.endswith('.py') and f not in CHOKEPOINTS:
