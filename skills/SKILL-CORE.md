@@ -49,7 +49,7 @@ Producing files for humans to run manually = wrong pattern, always refuse it.
 ---
 
 ## 交接通道 SSOT（claude.ai ⇄ Kevin ⇄ Code）
-唯一通道規範＝`prospera-constitution-governance/00_governance/HANDOFF_PROTOCOL.md`。方向二（claude.ai→Code）：Kevin 下載 `GOAL_YYYY-MM-DD_<slug>.txt` 放 `C:\AI_WorkDir\GitHub\_inbox\from-claude-ai\`，啟動詞「執行 inbox GOAL」→ Code 讀最新 .txt 執行、完成移 `done/`。禁即興重講落點/檔名。
+唯一通道規範＝`prospera-constitution-governance/00_governance/HANDOFF_PROTOCOL.md`。claude.ai→Code 這一路：Kevin 下載 `GOAL_YYYY-MM-DD_<slug>.txt` 放 `C:\AI_WorkDir\GitHub\_inbox\from-claude-ai\`，啟動詞「執行 inbox GOAL」→ Code 讀最新 .txt 執行、完成移 `done/`。禁即興重講落點/檔名。
 
 ---
 
