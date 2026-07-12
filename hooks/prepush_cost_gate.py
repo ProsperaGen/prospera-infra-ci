@@ -30,6 +30,7 @@ for _s in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
+__version__ = "1.0.0"                      # cost-gate v1.0.0（2026-07-13 發布：真 pre-execution 本機閘）
 ORG = "ProsperaGen"
 RATE_PER_MIN = 0.008                       # 保守（2026 實際 $0.006，寧高估）
 BUDGET = float(os.environ.get("PROSPERA_ACTIONS_BUDGET", "20") or 20)
