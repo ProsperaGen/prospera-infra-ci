@@ -14,3 +14,4 @@ health_*.json
 .env.local
 *.secret
 hooks/prepush_cost_ledger.jsonl
+hooks/prepush_excursion_ledger.jsonl

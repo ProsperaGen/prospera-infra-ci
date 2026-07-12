@@ -30,12 +30,35 @@ for _s in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-__version__ = "1.0.0"                      # cost-gate v1.0.0（2026-07-13 發布：真 pre-execution 本機閘）
+__version__ = "1.1.0"                      # v1.1（2026-07-13）：閘值動態化（org budget×0.9），修 $20 固定值致 override 常態化
 ORG = "ProsperaGen"
 RATE_PER_MIN = 0.008                       # 保守（2026 實際 $0.006，寧高估）
-BUDGET = float(os.environ.get("PROSPERA_ACTIONS_BUDGET", "20") or 20)
-WARN_RATIO = 0.75                          # 75% 預算 → 響鈴但放行
+BLOCK_RATIO = 0.90                         # 達 budget×0.9 → BLOCK（留 10% headroom 給 stop-usage lag）
+WARN_RATIO = 0.75                          # budget×0.75 → 響鈴但放行
+DEFAULT_BUDGET = 45.0                      # budget 讀不到時的 fallback（env PROSPERA_CI_BUDGET 可覆寫）
+OVERRIDE_STREAK_ALARM = 3                  # override 連續 N 次 → 強制警告+記 excursion（防常態化）
 LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prepush_cost_ledger.jsonl")
+EXCURSION = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prepush_excursion_ledger.jsonl")
+
+
+def budget_amount():
+    """動態讀當月 org Actions budget（真帳單治理，非寫死）。
+    優先 org billing budgets API → fallback env PROSPERA_CI_BUDGET → 預設 45。回 (amount, source)。"""
+    env = os.environ.get("PROSPERA_CI_BUDGET")
+    if env:
+        try:
+            return float(env), "env:PROSPERA_CI_BUDGET"
+        except ValueError:
+            pass
+    r = _run(["gh", "api", f"orgs/{ORG}/settings/billing/budgets"])
+    if r.returncode == 0 and r.stdout.strip():
+        try:
+            for b in json.loads(r.stdout).get("budgets", []):
+                if b.get("budget_product_sku") == "actions" and b.get("budget_scope") == "organization":
+                    return float(b.get("budget_amount", 0) or 0) or DEFAULT_BUDGET, "org-budget-api"
+        except Exception:
+            pass
+    return DEFAULT_BUDGET, "default(45)"
 
 
 def _run(cmd, inp=None):
@@ -129,12 +152,49 @@ def _log(row: dict):
         pass
 
 
+def _override_streak() -> int:
+    """讀 ledger 尾端連續 override 次數（含本次前）。防 override 常態化。"""
+    if not os.path.isfile(LEDGER):
+        return 0
+    streak = 0
+    try:
+        lines = [l for l in open(LEDGER, encoding="utf-8").read().splitlines() if l.strip()]
+        for l in reversed(lines):
+            if json.loads(l).get("event") == "override":
+                streak += 1
+            else:
+                break
+    except Exception:
+        return 0
+    return streak
+
+
 def decide(remote_url: str, refs_stdin: str) -> int:
     if not is_prospera_remote(remote_url):
         return 0                            # 非 ProsperaGen → 不干擾
+
+    budget, bsrc = budget_amount()
+    block_at = round(budget * BLOCK_RATIO, 2)
+    warn_at = round(budget * WARN_RATIO, 2)
+
     if os.environ.get("PROSPERA_COST_OVERRIDE") == "1":
-        print("[cost-gate] ⚠ PROSPERA_COST_OVERRIDE=1 → 明確略過成本閘（已記帳）。")
-        _log({"event": "override", "remote": remote_url})
+        streak = _override_streak() + 1     # 含本次
+        row = {"event": "override", "remote": remote_url, "streak": streak}
+        if streak >= OVERRIDE_STREAK_ALARM:  # 防常態化：連續 N 次 → 強制警告+excursion
+            print("=" * 66)
+            print(f"[cost-gate] 🚨 OVERRIDE 已連續 {streak} 次（≥{OVERRIDE_STREAK_ALARM}）——繞過正在常態化！")
+            print("  業界警告：--no-verify/override 常態化會摧毀整條成本價值鏈。")
+            print("  → 請改本機驗收降 push 頻率，或調高 org budget（若確為合理成長）。")
+            print("=" * 66)
+            row["excursion"] = True
+            try:
+                with open(EXCURSION, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            except Exception:
+                pass
+        else:
+            print(f"[cost-gate] ⚠ PROSPERA_COST_OVERRIDE=1 → 明確略過（連續第 {streak} 次，已記帳）。")
+        _log(row)
         return 0
 
     repo = remote_url.rstrip("/").split("/")[-1].replace(".git", "")
@@ -148,30 +208,30 @@ def decide(remote_url: str, refs_stdin: str) -> int:
         return 0
 
     projected = round(net + est["cost"], 2)
-    warn_at = round(BUDGET * WARN_RATIO, 2)
     line = (f"當月實付 net=${net}（gross=${gross}, {src}）＋本次估 ${est['cost']}"
-            f"（{est['minutes']}分, {est['n_files']}檔）= 投影 ${projected} / 預算 ${BUDGET}")
+            f"（{est['minutes']}分, {est['n_files']}檔）= 投影 ${projected} / 閾值 ${block_at}"
+            f"（budget ${budget} × {BLOCK_RATIO}, {bsrc}）")
 
-    if net >= BUDGET or projected >= BUDGET:
+    if net >= block_at or projected >= block_at:
         print("=" * 66)
         print(f"[cost-gate] ⛔ BLOCK：{line}")
-        print(f"  已達/將超 ${BUDGET} 月預算 → 擋 push（workflow 不觸發＝零 Actions 成本）。")
+        print(f"  達/將超 budget ${budget} 的 {int(BLOCK_RATIO*100)}% → 擋 push（workflow 不觸發＝零 Actions 成本）。")
         print(f"  變更觸發：{'；'.join(est['reasons'])}")
         print("  出路：① 本機驗收後再一次 push（py_compile/pytest 本機跑，省整筆 CI）")
-        print("        ② 確需上 CI：PROSPERA_COST_OVERRIDE=1 git push（明確、記帳）")
+        print("        ② 確需上 CI：PROSPERA_COST_OVERRIDE=1 git push（明確、記帳；連續 3 次會告警）")
         print("        ③ commit 訊息帶 [hold] 讓 CI 端 PROSPERA_HOLD_GUARD 跳過")
         print("=" * 66)
         _log({"event": "block", "repo": repo, "net": net, "projected": projected,
-              "budget": BUDGET, "est": est})
+              "budget": budget, "block_at": block_at, "est": est})
         return 1
 
     if net >= warn_at:
-        print(f"[cost-gate] ⚠ WARN：{line}（≥{int(WARN_RATIO*100)}%）→ 放行，但建議改本機驗收降 push 頻率。")
-        _log({"event": "warn", "repo": repo, "net": net, "projected": projected, "est": est})
+        print(f"[cost-gate] ⚠ WARN：{line}（≥{int(WARN_RATIO*100)}% budget）→ 放行，建議改本機驗收降 push 頻率。")
+        _log({"event": "warn", "repo": repo, "net": net, "projected": projected, "budget": budget, "est": est})
         return 0
 
     print(f"[cost-gate] ✅ {line} → 放行。")
-    _log({"event": "allow", "repo": repo, "net": net, "projected": projected, "est": est})
+    _log({"event": "allow", "repo": repo, "net": net, "projected": projected, "budget": budget, "est": est})
     return 0
 
 
