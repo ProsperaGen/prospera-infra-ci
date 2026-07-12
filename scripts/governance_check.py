@@ -90,12 +90,30 @@ def check_fitness():
         violations.append("Fitness A — ontology hardcode 違規（本體進 runtime，D2 防再生）")
 
 
+def check_pii_chokepoint():
+    """PII 儲存咽喉靜態閘（四面一體鏈 STEP 1）：repo-local opt-in——僅 repo 含此 checker 才跑。
+
+    掃「PII 路徑（journey duckdb / .pseudonym_salt）的直接 open()/DuckKVStore()」繞過 02_kernel/
+    pii_storage.py 咽喉 → 硬違規擋 PR。非 os repo（無此 checker）自動 skip，不影響其餘生態系。
+    """
+    f = ROOT / "bi_ingestion" / "pii_chokepoint_check.py"
+    if not f.exists():
+        return  # repo-local：非 os repo 無此 checker → skip（不影響 38 repo）
+    print("▶ PII 咽喉靜態閘 — 掃 PII 路徑直接 open() 繞過咽喉")
+    r = subprocess.run([sys.executable, str(f)], capture_output=True, text=True)
+    sys.stdout.write(r.stdout)
+    if r.returncode != 0:
+        sys.stdout.write(r.stderr)
+        violations.append("PII 咽喉 — 有 PII 路徑直接 open()/DuckKVStore 繞過 02_kernel/pii_storage.py（個資隔離破口）")
+
+
 def main():
     print("=== Prospera Governance Check (central producer) ===")
     check_contract()
     check_binaries()
     check_directory_schema()
     check_fitness()
+    check_pii_chokepoint()
 
     if warnings:
         print("\n-- WARNINGS (non-blocking) --")
