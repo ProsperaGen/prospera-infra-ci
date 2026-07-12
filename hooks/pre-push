@@ -1,0 +1,8 @@
+#!/bin/sh
+# Prospera pre-execution 成本閘 — pre-push hook shim（呼叫 python 本體）。
+# 經 global core.hooksPath 一鍵覆蓋全機 repo；本體自 scope（非 ProsperaGen remote 放行）。
+# 任何缺 python/例外 → fail-open（不 brick push）。
+DIR="$(dirname "$0")"
+PY="$(command -v python 2>/dev/null || command -v python3 2>/dev/null)"
+[ -z "$PY" ] && exit 0
+exec "$PY" "$DIR/prepush_cost_gate.py" "$1" "$2"

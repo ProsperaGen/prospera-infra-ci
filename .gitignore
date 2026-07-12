@@ -13,3 +13,4 @@ health_*.json
 .env
 .env.local
 *.secret
+hooks/prepush_cost_ledger.jsonl
