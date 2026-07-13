@@ -51,6 +51,14 @@ Producing files for humans to run manually = wrong pattern, always refuse it.
 ## 交接通道 SSOT（claude.ai ⇄ Kevin ⇄ Code）
 唯一通道規範＝`prospera-constitution-governance/00_governance/HANDOFF_PROTOCOL.md`。claude.ai→Code 這一路：Kevin 下載 `GOAL_YYYY-MM-DD_<slug>.txt` 放 `C:\AI_WorkDir\GitHub\_inbox\from-claude-ai\`，啟動詞「執行 inbox GOAL」→ Code 讀最新 .txt 執行、完成移 `done/`。禁即興重講落點/檔名。
 
+## 收工/交接取證（HANDOFF_PROOF，防宣稱≠生效）
+協議 SSOT＝`prospera-constitution-governance/00_governance/HANDOFF_PROOF_PROTOCOL.md`。鐵律：
+1. **每次收工/交接必產 HANDOFF_PROOF 塊**（touched / hash / exit / claims）。
+2. **hash 一律取 `git log origin/main -1`（remote，非本機）——無 remote hash＝交接未完成。**
+3. **「機制上線」宣稱必附 checker 落 main 證據**（grep 符號 in origin/main + PR MERGED），非只測試數字。
+4. **下一棒只驗證明塊**（重跑 claims 取證命令對 hash/exit），**禁全量重查**；任一不符＝上一棒宣稱≠生效，記 SESSION_AUDIT。
+（緣起 2026-07-13 收工漏執行教訓，registry §二六「建了機制必須驗證被觸發過」。）
+
 ---
 
 ## Changelog
