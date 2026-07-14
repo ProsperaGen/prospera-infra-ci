@@ -29,10 +29,18 @@ jobs:
           pip install pytest 2>/dev/null || true
           pip install -r requirements.txt 2>/dev/null || true
       - name: pytest
+        # ★274 修遮罩：原 `A || B || echo` 使失敗恆被 echo 吞成 exit0（結構不可能紅=假閘）。
+        # 改為「跑存在的測試目錄，讓其 exit code 浮現」——通用邏輯非 repo-specific 路徑、
+        # 非放寬全域收集；保留「無測試目錄→skip」fallback。continue-on-error 仍在（ADR-0251
+        # 品質類非阻斷），但紅可見（真陰真陽 run 為證）。
         run: |
-          python -m pytest 11_tests/ -q --tb=short 2>/dev/null || \
-          python -m pytest tests/ -q --tb=short 2>/dev/null || \
-          echo "✅ 無測試目錄，跳過"
+          if [ -d 11_tests ]; then
+            python -m pytest 11_tests/ -q --tb=short
+          elif [ -d tests ]; then
+            python -m pytest tests/ -q --tb=short
+          else
+            echo "✅ 無測試目錄，跳過"
+          fi
 
   detect-simplified:
     runs-on: ubuntu-latest
