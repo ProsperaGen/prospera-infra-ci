@@ -27,7 +27,7 @@ jobs:
         continue-on-error: true
         uses: actions/checkout@v4
         with:
-          repository: ccktaiwan/prospera-agent-monitor
+          repository: ProsperaGen/prospera-agent-monitor
           token: ${{ secrets.PROSPERA_DASHBOARD_TOKEN }}
           path: prospera-agent-monitor
 
@@ -42,7 +42,7 @@ jobs:
       - name: Run auto_remediation
         continue-on-error: true
         env:
-          GITHUB_REPO: ccktaiwan/prospera-agent-monitor
+          GITHUB_REPO: ProsperaGen/prospera-agent-monitor
           PROSPERA_MCP_TOKEN: ${{ secrets.PROSPERA_MCP_TOKEN }}
           LINE_NOTIFY_TOKEN: ${{ secrets.LINE_NOTIFY_TOKEN }}
           SMTP_USER: ${{ secrets.SMTP_USER }}

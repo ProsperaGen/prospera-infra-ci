@@ -6,7 +6,7 @@ name: Actions Usage Lint
 # Reusable workflow（workflow_call）。各 repo 以 caller 呼叫：
 #   jobs:
 #     actions-usage-lint:
-#       uses: ccktaiwan/prospera-infra-ci/.github/workflows/actions-usage-lint.yml@main
+#       uses: ProsperaGen/prospera-infra-ci/.github/workflows/actions-usage-lint.yml@main
 #
 # 強制執行 governance/ACTIONS_USAGE_POLICY.md：唯一 FAIL = 高頻 cron（MUST 5），其餘 WARN。
 on:
@@ -30,7 +30,7 @@ jobs:
       - name: Checkout infra-ci (lint script)
         uses: actions/checkout@v4
         with:
-          repository: ccktaiwan/prospera-infra-ci
+          repository: ProsperaGen/prospera-infra-ci
           ref: main
           path: .lint-infra
 

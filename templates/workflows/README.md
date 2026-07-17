@@ -19,7 +19,7 @@
 ```yaml
 jobs:
   actions-usage-lint:
-    uses: ccktaiwan/prospera-infra-ci/.github/workflows/actions-usage-lint.yml@main
+    uses: ProsperaGen/prospera-infra-ci/.github/workflows/actions-usage-lint.yml@main
 ```
 
 > SSOT 規範：`prospera-constitution-governance/governance/ACTIONS_USAGE_POLICY.md`

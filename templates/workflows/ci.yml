@@ -30,4 +30,4 @@ jobs:
 
   # Actions 用量治理檢查（MUST 1-5 / SHOULD 6）——預載，勿移除
   actions-usage-lint:
-    uses: ccktaiwan/prospera-infra-ci/.github/workflows/actions-usage-lint.yml@main
+    uses: ProsperaGen/prospera-infra-ci/.github/workflows/actions-usage-lint.yml@main

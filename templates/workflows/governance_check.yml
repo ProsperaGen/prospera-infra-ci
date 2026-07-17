@@ -33,7 +33,7 @@ jobs:
       - name: Fetch central governance-check logic (infra-ci SSOT)
         run: |
           curl -fsSL \
-            https://raw.githubusercontent.com/ccktaiwan/prospera-infra-ci/main/scripts/governance_check.py \
+            https://raw.githubusercontent.com/ProsperaGen/prospera-infra-ci/main/scripts/governance_check.py \
             -o /tmp/governance_check.py
 
       - name: Run governance-check
