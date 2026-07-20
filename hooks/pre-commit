@@ -1,0 +1,19 @@
+#!/bin/sh
+# Prospera 並存 shim — pre-commit 委派回各 repo 自身 .git/hooks/pre-commit。
+#
+# ★為何需要（2026-07-20 Kevin 裁「禁靜默犧牲閘」）：
+#   global `core.hooksPath` 一設，git **完全忽略** 各 repo 的 .git/hooks/ ——
+#   而 pre-commit framework 正是裝在那裡（治理 repo 的 Fitness Gate／簡體零容忍／Drift Guard）。
+#   故原 install_hooks.py（只出貨 pre-push）一裝，等於用成本閘換掉三個防漂移閘，且**靜默無感**。
+#   本 shim 令兩者並存：成本閘走 pre-push，各 repo 原有 pre-commit 照跑。
+#
+# ★路徑取法：用 `git rev-parse --git-dir` 而非 `--git-path hooks/...`——
+#   後者**會被 core.hooksPath 改寫**（實測），委派目標會指回本目錄造成無限遞迴。
+#
+# fail-open：無 git／無本地 hook／任何例外 → exit 0（缺閘不 brick commit）。
+GITDIR="$(git rev-parse --git-dir 2>/dev/null)" || exit 0
+[ -z "$GITDIR" ] && exit 0
+LOCAL="$GITDIR/hooks/pre-commit"
+[ -x "$LOCAL" ] && exec "$LOCAL" "$@"
+[ -f "$LOCAL" ] && exec sh "$LOCAL" "$@"
+exit 0
