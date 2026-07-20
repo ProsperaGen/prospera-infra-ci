@@ -66,9 +66,17 @@ def _run(cmd, inp=None):
                           errors="replace", input=inp)
 
 
+# ★org 改名遺留（2026-07-20 實測坐實）：org 已由 `ccktaiwan` 更名 `ProsperaGen`，
+#   但本機 79 個 clone 中 **76 個 remote URL 仍為舊名**（GitHub 重導向故仍可 push）。
+#   原判定只認 "prosperagen" → 對那 76 個 repo 一律 return 0 放行
+#   ＝成本閘實際只覆蓋 3/79（3.8%），這才是它從未攔截過的真因（非「沒撞預算」）。
+#   ccktaiwan 為 Kevin 個人帳號舊名，其下 prospera-* 皆已轉入 ProsperaGen org。
+_ORG_ALIASES = ("prosperagen", "ccktaiwan")
+
+
 def is_prospera_remote(url: str) -> bool:
     u = (url or "").lower()
-    return "prosperagen" in u and "github.com" in u
+    return "github.com" in u and any(o in u for o in _ORG_ALIASES)
 
 
 def current_month_spend():

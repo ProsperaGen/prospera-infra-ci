@@ -86,3 +86,24 @@ def run():
 
 if __name__ == "__main__":
     sys.exit(run())
+
+
+# ── org 改名遺留：舊名 remote 亦須覆蓋（2026-07-20，真陽真陰）──────────────
+def test_org_alias_ccktaiwan_covered():
+    """★真陽：org 舊名 ccktaiwan 之 remote 須被覆蓋。
+    實測坐實：本機 79 clone 中 76 個 remote 仍為舊名 → 原判定只認 prosperagen
+    致成本閘實際只覆蓋 3/79，此為它從未攔截過之真因。"""
+    assert g.is_prospera_remote("https://github.com/ccktaiwan/prospera-infra-ci.git")
+    assert g.is_prospera_remote("git@github.com:ccktaiwan/prospera-os.git")
+
+
+def test_org_alias_prosperagen_still_covered():
+    """不破既有：新名仍覆蓋。"""
+    assert g.is_prospera_remote("https://github.com/ProsperaGen/prospera-os.git")
+
+
+def test_non_prospera_remote_still_passthrough():
+    """★真陰：非本組織 remote 一律放行，不干擾他人 repo。"""
+    assert not g.is_prospera_remote("https://github.com/someoneelse/other.git")
+    assert not g.is_prospera_remote("https://gitlab.com/ccktaiwan/x.git")
+    assert not g.is_prospera_remote("")
