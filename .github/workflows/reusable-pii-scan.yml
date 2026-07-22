@@ -1,0 +1,40 @@
+# Prospera SYSTEM HEADER (ADR-0032/SBOM) | 性質:ci(client repo PII 阻斷閘,可重用) | 設計:Kevin 架構(發明人, 2026-07-22 Tier 0 核准)
+# 執行:AI 工具(Claude Code) | 驗證:合成假 PII 注入實測真阻擋（行為驗證留痕） | IP:創造性歸 Kevin(發明人), AI 為執行工具
+#
+# 背景（PENDING-394）：client repo 之 PII 紅線原本只有 .gitignore（被動，git add -f 可繞），
+# CI（reusable-governance.yml）只有繁中閘＋PENDING 格式閘，無任何 PII 掃描 ⇒ 紅線無機器強制。
+# 本 workflow 為 DATA_BOUNDARY（AUTONOMY_RULES §18）之機器閘，**阻斷級，不掛 continue-on-error**。
+name: Reusable PII Scan (DATA_BOUNDARY §18)
+
+on:
+  workflow_call:
+
+jobs:
+  pii-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout 受掃 repo
+        uses: actions/checkout@v4
+        with:
+          path: target
+
+      - name: checkout 掃描器（infra-ci）
+        uses: actions/checkout@v4
+        with:
+          repository: ProsperaGen/prospera-infra-ci
+          path: infra-ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # 掃描器自驗先跑：真陽真陰不過就不必談掃描結果（防「閘壞掉但全綠」）
+      - name: 掃描器自驗（真陽 4／真陰 5）
+        env:
+          PYTHONUTF8: '1'
+        run: python infra-ci/scripts/pii_scan.py --selftest
+
+      - name: 個人層 PII 掃描（阻斷級）
+        env:
+          PYTHONUTF8: '1'
+        run: python infra-ci/scripts/pii_scan.py --path target --format github
