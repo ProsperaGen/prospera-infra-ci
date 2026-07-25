@@ -516,3 +516,24 @@ See AGENTS.md and GOVERNANCE_STATUS.md." > SYSTEM_INDEX.md
 - MUST NOT：用 ─── 或 STEP N 製造視覺層次
 - 首次發現：2026-05-24
 - DNA 要素：要素八（AI 協作協議）
+
+---
+
+## KF-026｜當日 SESSION_AUDIT 未產出前，governance repo 任何 PR 之 governance-pipeline 必紅
+
+- 症狀：`gh pr checks <n>` → `governance-pipeline fail`，log 末行
+  `[FAIL] 當日 SESSION_AUDIT 不存在：SESSION_AUDIT_YYYY-MM-DD.md（收工未完成，鐵律五）`（exit 1）。
+- 根本原因：`.github/workflows/governance-pipeline.yml:160` **無條件**跑
+  `00_governance/fitness/check_session_audit.py`，而該 checker docstring 自載之接線建議為
+  「**只在 PR 觸及 state 三檔（CURRENT_STATE/ACTIVE_STATE/MASTER_LOG）時強制**，一般 PR 不需 SESSION_AUDIT」
+  ⇒ **實際覆蓋面寬於文件宣稱**：收工前（當日 audit 尚未產出）開的任何 PR 都被判「未收工」而紅。
+  ★非本機環境問題、非 PR 內容問題——同日任何 PR 皆同症。
+- 影響 Repo：prospera-constitution-governance（首見 PR #1091，2026-07-25）
+- 標準修法（依情境二擇一，**禁為求綠而先寫假收工 audit**）：
+  1. **一般日間 PR**：留 PR OPEN，待當日收工儀式產出 `00_governance/session-log/SESSION_AUDIT_YYYY-MM-DD.md` 後檢查自動轉綠再 merge。
+  2. **確為收工 PR**：同 PR 內一併帶當日 SESSION_AUDIT（必填四欄：`session_date`／
+     `three_strike_triggered`／`problems_recurred`／`next_session_warnings`），並附 HANDOFF_PROOF 塊。
+  · 治根（待 Kevin 裁，非本 KF 自行執行）：把該步收窄為「僅當 diff 觸及 state 三檔才跑」，
+    使閘覆蓋面回到 checker 自述之判準。
+- 首次發現：2026-07-25（開工同步表 PR #1091；本機 `python 00_governance/fitness/check_session_audit.py` 同樣 exit 1，已重現）
+- DNA 要素：要素五（可工程實作）／要素十（宣稱≠生效：閘覆蓋面寬於文件宣稱亦屬名實不符）
