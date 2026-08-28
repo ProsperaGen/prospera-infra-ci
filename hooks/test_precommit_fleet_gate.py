@@ -121,6 +121,27 @@ def test_pure_traditional_is_clean():
         assert g.main() == 0, "純繁體 main() 應回 0"
 
 
+def test_readme_only_does_not_rescan_existing_deliverables():
+    """真陰⑥（ADR-0323 成對驗證②）：目錄內存在缺 sidecar 之**既有** docx，
+    本次僅 stage `deliverables/README.md` → 不得回頭審既有檔，必過。
+
+    與真陽②成對：同一目錄、同一缺口，差別只在**該 docx 這次有沒有被 staged**。
+    """
+    if not os.path.isfile(os.path.join(
+            g.GOV, "00_governance", "fitness", "check_deliverable_gate.py")):
+        print("[SKIP] check_deliverable_gate 不可及")
+        return
+    with temp_repo(files={"deliverables/old.docx": b"PKfake-docx",
+                          "deliverables/README.md": TRAD}, add=False):
+        subprocess.run(["git", "add", "deliverables/README.md"], check=True,
+                       capture_output=True)
+        staged = g.staged_files()
+        assert staged == ["deliverables/README.md"], f"測試前提：只應 stage README，實際 {staged}"
+        msg = "既有 docx 不得因他檔提交被回頭審（ADR-0323 存量豁免）"
+        assert g.check_deliverables(staged) == [], msg
+        assert g.main() == 0, "僅改 README 應放行"
+
+
 def test_out_of_scope_remote_is_skipped():
     """真陰②：非 ProsperaGen/ccktaiwan remote → 不在範圍，含簡體亦放行。"""
     with temp_repo(remote=OTHER_REMOTE, files={"docs/note.md": SIMP}):

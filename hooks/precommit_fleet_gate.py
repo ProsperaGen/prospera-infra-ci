@@ -95,8 +95,20 @@ def check_simplified(files: list) -> list:
 
 
 def check_deliverables(files: list) -> list:
-    """staged 觸及 deliverables/ 時跑交付物閘。回 violations（含缺 render.log/md 與簡體）。"""
-    if not any("deliverables/" in f.replace("\\", "/") for f in files):
+    """staged 之 deliverables/*.docx 跑交付物閘。回 violations（含缺 render.log/md 與簡體）。
+
+    ★審查範圍＝**本次 staged 之 docx 本身**，非其所在目錄（`ADR-0323`，採納 2026-08-28）。
+    理由：原以 `dirname(staged)` 為掃描根，會使既有歷史檔因他檔提交被回頭審查——
+    修一行 README 即引燃全目錄存量缺口，且該缺口不可由執行層消除
+    （補 render.log ＝捏造證據；重跑渲染＝覆蓋已對外交付物）⇒ 形成無出口之擋。
+    閘擋新債，存量債以列冊償還（`PENDING-625` 結案、`PENDING-647` 列冊）。
+
+    連帶後果（ADR-0323 明載）：只 stage `.md`／`.render.log` 而未 stage 同名 docx 時不觸發檢查；
+    `staged_files()` 之 `--diff-filter=ACM` 本即不含刪除。
+    """
+    docx = [f for f in files
+            if "deliverables/" in f.replace("\\", "/") and f.lower().endswith(".docx")]
+    if not docx:
         return []
     gate = os.path.join(GOV, "00_governance", "fitness", "check_deliverable_gate.py")
     if not os.path.isfile(gate):
@@ -104,9 +116,7 @@ def check_deliverables(files: list) -> list:
     try:
         from pathlib import Path
         mod = _load(gate, "_fleet_deliverable_gate")
-        dirs = sorted({os.path.dirname(f) for f in files
-                       if "deliverables/" in f.replace("\\", "/")})
-        res = mod.scan([Path(d) for d in dirs if os.path.isdir(d)])
+        res = mod.scan([Path(f) for f in sorted(docx) if os.path.isfile(f)])
         return res.get("violations", [])
     except Exception:
         return []
