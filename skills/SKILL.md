@@ -2,12 +2,12 @@
 # ProsperaGen Skills 總索引
 ## Document Header
 - Document Type: Codex
-- Version: v1.0
+- Version: v1.1
 - Status: Approved
 - Owner: prospera-infra-ci/skills/
 - Governing Authority: prospera-engineering-codex v1.0
 - DNA Reference: 要素一～十（全部）
-- Last Updated: 2026-05-19
+- Last Updated: 2026-08-28
 
 ---
 
@@ -26,6 +26,65 @@ Skills 是 ProsperaGen Engineering DNA 的執行觸發器。
 - 不取代 DNA（DNA 是規則定義，Skills 是執行介面）
 - 不包含架構決策（→ Prospera OS）
 - 不包含產品邏輯（→ 各自 repo）
+
+---
+
+## 2b. 開工協議（Boot Protocol）
+
+> 本節為**行為層固化**，三條皆**掛既有裝置**（既有 SSOT 見各條「承」欄），
+> **不新建閘、不新建工具**。裁決效力仍在原 SSOT，本節僅為 skills 側之強制入口。
+
+### 2b.1 並行判準（開工前必答）
+
+**承**：`prospera-constitution-governance/00_governance/AUTONOMY_RULES.md:642` §6.16（獨立子任務並行，
+2026-07-07 Kevin 裁）＋ `:670` §6.16b（依賴圖＋泳道判定）。
+**既有閘**：`00_governance/tools/parallel_gate.py`（`tests/hooks/test_parallel_gate.py` 真陽真陰），
+成對驗證掛於 `.github/workflows/newly_mounted_gates.yml:46`。
+
+派工前必答：**哪些任務互不依賴**。
+- 互不依賴者 → **必須 multi-agent 並行**（不得以「順手就做了」串行掉）
+- 有依賴者 → **標依賴鏈**（後階吃前階輸出＝同泳道＝禁並行，§6.16b①）
+
+**本節新增之強制點（掛既有回報形狀，非新裝置）**：
+回報**首段第一行**必含
+
+```
+並行判定：X 並行／Y 串行／依賴鏈：<A→B→C，或「無」>
+```
+
+**缺此行＝回報格式不符**，與缺 Tier 標記同級處置（退回補齊，不追認）。
+
+### 2b.2 讀前驗態（任何 repo 操作前）
+
+**承**：`prospera-constitution-governance/00_governance/instructions/INSTRUCTIONS_DOD.md` §Q0 開工協議
+之「★開工分支已驗」條（2026-07-28 新增，三振第 5/6 例修法）。
+★**本條為該條之補遺，不重述已有條文**——既有 Q0 已規定回報 `git branch --show-current`
+與 `git rev-list --count HEAD..origin/main`（非 `main` 或落後 >0 即紅）。
+
+**補之 delta 兩項**：既有 Q0 只驗 **branch** 與 **behind**，另兩態靜默通過。故加驗：
+
+| 態 | 指令 | 判準 |
+|---|---|---|
+| ahead（未推） | `git rev-list --count origin/main..HEAD` | >0 即須報，先處置再開工 |
+| dirty（工作樹） | `git status --porcelain` | 非空即須報；命中 key-path 即 **Tier 0 停手** |
+
+**實例（2026-08-28，本條之立法事實）**：`prospera-infra-ci` 本機 `main`
+＝ behind 22 ／ ahead 1（`62d98a1` hooks shim 未推）／ dirty 20+ 檔且含 `.github/workflows/` 八支
+（key-path-guard 保護路徑）。**現行 Q0 只會抓到 behind**，ahead 與 dirty 全數靜默通過——
+若逕行在該工作樹提交，Tier 0 路徑將被夾帶入 commit。
+
+### 2b.3 SSOT 引用紀律（升為通則）
+
+**承**：`ADR-0164`（ontology repo 為唯一本體 SSOT，`org_topology.json` 降本地鏡像／指針）、
+`ADR-0292`（GitHub 唯一 SSOT，OneDrive 降純鏡像／交付暫存，非真相源）、
+`00_governance/INDUSTRY_PRACTICES_REGISTRY.md:16` 引用紀律（原僅限該表）。
+
+**升通則**：
+- **裁決性引用**（用以支撐判斷、結案、Tier 判定者）→ **必回原 SSOT 檔取原文行號**，
+  格式 `<repo>/<path>:<line>`；引用時應為當次實查所得，非記憶或轉述。
+- **鏡像與摘要僅供導航**：state 檔、dashboard、handoff、session log、OneDrive 副本、
+  本節之「承」欄本身——**皆不得作為裁決依據**，只能作為找到原檔的指路。
+- 找不到原文行號 → 記為**未證實**，不得以鏡像文字補位。
 
 ---
 
@@ -50,6 +109,8 @@ Skills 是 ProsperaGen Engineering DNA 的執行觸發器。
 
 ```
 [開始任務]
+    ↓
+開工協議（並行判準／讀前驗態／引用紀律）  ← §2b
     ↓
 讀 SKILL.md §3 → 找對應 Skill → 讀完
     ↓
