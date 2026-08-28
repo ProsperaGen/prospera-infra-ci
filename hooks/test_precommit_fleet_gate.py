@@ -77,7 +77,7 @@ def test_simplified_staged_is_violation():
         print("[SKIP] 判準源不可及，真陽①無意義")
         return
     with temp_repo(files={"docs/note.md": SIMP}):
-        viol = g.check_simplified(g.staged_files())
+        viol, _skip = g.check_simplified(g.staged_files())
         assert viol, "簡體 staged 檔應命中，實際 clean（閘漏擋）"
         assert any("note.md" in f for f, _ in viol), f"違規未指名檔案：{viol}"
         assert g.main() == 1, "main() 應回 1 擋 commit"
@@ -90,7 +90,7 @@ def test_deliverable_missing_log_and_md_is_violation():
         print("[SKIP] check_deliverable_gate 不可及")
         return
     with temp_repo(files={"deliverables/report.docx": b"PK\x03\x04fake-docx"}):
-        viol = g.check_deliverables(g.staged_files())
+        viol, _skip = g.check_deliverables(g.staged_files())
         assert viol, "缺 render.log+md 之 docx 應違規，實際放行"
         missing = viol[0].get("missing")
         assert "render.log" in missing and "md" in missing, f"missing 不完整：{missing}"
@@ -107,7 +107,7 @@ def test_deliverable_md_simplified_is_violation():
         "deliverables/r.render.log": "rendered ok\n",
         "deliverables/r.md": SIMP,
     }):
-        viol = g.check_deliverables(g.staged_files())
+        viol, _skip = g.check_deliverables(g.staged_files())
         assert viol, "交付物 md 含簡體應違規"
         assert any("簡體" in m for m in viol[0].get("missing", [])), viol
 
@@ -117,8 +117,29 @@ def test_deliverable_md_simplified_is_violation():
 def test_pure_traditional_is_clean():
     """真陰①：純繁體 staged → 無違規，main() 放行。"""
     with temp_repo(files={"docs/note.md": TRAD, "src/a.py": "# " + TRAD + "\n"}):
-        assert g.check_simplified(g.staged_files()) == [], "純繁體被誤擋（假陽）"
+        assert g.check_simplified(g.staged_files())[0] == [], "純繁體被誤擋（假陽）"
         assert g.main() == 0, "純繁體 main() 應回 0"
+
+
+def test_readme_only_does_not_rescan_existing_deliverables():
+    """真陰⑥（ADR-0323 成對驗證②）：目錄內存在缺 sidecar 之**既有** docx，
+    本次僅 stage `deliverables/README.md` → 不得回頭審既有檔，必過。
+
+    與真陽②成對：同一目錄、同一缺口，差別只在**該 docx 這次有沒有被 staged**。
+    """
+    if not os.path.isfile(os.path.join(
+            g.GOV, "00_governance", "fitness", "check_deliverable_gate.py")):
+        print("[SKIP] check_deliverable_gate 不可及")
+        return
+    with temp_repo(files={"deliverables/old.docx": b"PKfake-docx",
+                          "deliverables/README.md": TRAD}, add=False):
+        subprocess.run(["git", "add", "deliverables/README.md"], check=True,
+                       capture_output=True)
+        staged = g.staged_files()
+        assert staged == ["deliverables/README.md"], f"測試前提：只應 stage README，實際 {staged}"
+        msg = "既有 docx 不得因他檔提交被回頭審（ADR-0323 存量豁免）"
+        assert g.check_deliverables(staged)[0] == [], msg
+        assert g.main() == 0, "僅改 README 應放行"
 
 
 def test_out_of_scope_remote_is_skipped():
@@ -152,7 +173,7 @@ def test_binary_and_unknown_ext_ignored():
         return
     with temp_repo(files={"blob.bin": SIMP.encode("utf-8"),
                           "x.docx": SIMP.encode("utf-8")}):
-        assert g.check_simplified(g.staged_files()) == [], "非文字副檔名不應被掃"
+        assert g.check_simplified(g.staged_files())[0] == [], "非文字副檔名不應被掃"
 
 
 # ── fail-open：判準源不可及不得 brick commit ──────────────────────
@@ -167,8 +188,14 @@ def test_fail_open_when_gov_root_unreachable():
         assert not os.path.isdir(mod.GOV), "測試前提：GOV 路徑須不存在"
         with temp_repo(files={"docs/note.md": SIMP,
                               "deliverables/r.docx": b"PK\x03\x04fake"}):
-            assert mod.check_simplified(mod.staged_files()) == [], "判準不可及應 fail-open"
-            assert mod.check_deliverables(mod.staged_files()) == [], "交付物閘不可及應 fail-open"
+            # ★PENDING-646（2026-08-28 L0 裁）：判準不可及仍 fail-open（不 brick commit），
+            #   但**必須明示 SKIPPED**＝未執行、非通過；靜默回 [] 會被下游讀成「已檢查無問題」。
+            v, sk = mod.check_simplified(mod.staged_files())
+            assert v == [], "判準不可及應 fail-open（不列違規）"
+            assert sk, "判準不可及須回 skipped_reason（明示未執行，禁靜默）"
+            v2, sk2 = mod.check_deliverables(mod.staged_files())
+            assert v2 == [], "交付物閘不可及應 fail-open（不列違規）"
+            assert sk2, "交付物閘不可及須回 skipped_reason（明示未執行，禁靜默）"
             assert mod.main() == 0, "fail-open 下 main() 必須回 0"
     finally:
         if prev is None:
@@ -222,6 +249,62 @@ def _run_standalone() -> int:
           f"（{len(tests) - len(fails)}/{len(tests)}）")
     return 0 if not fails else 1
 
+
+
+# ── PENDING-646／647 成對測例（2026-08-28 L0 裁：撤單改辦，當場修）────────
+
+def test_pending646_non_utf8_file_is_red_not_silently_skipped():
+    """真陽：staged .md 非 UTF-8（cp950 位元組）→ 判紅，**不得**靜默略過。
+
+    ★前病灶：`raw.decode("utf-8", errors="ignore")` 把不可解位元組吞掉，
+      非 UTF-8 檔一律看起來乾淨；且 `except Exception: continue` 讓讀檔失敗無聲。
+    """
+    if not _gov_available():
+        return
+    big5 = (TRAD).encode("cp950")          # 非 UTF-8 之合法中文位元組
+    with temp_repo(files={"docs/legacy.md": big5}):
+        viol, skip = g.check_simplified(g.staged_files())
+        assert skip is None, "判準可及時不應 SKIPPED"
+        assert any(f.endswith("legacy.md") for f, _ in viol), \
+            "非 UTF-8 檔須判紅（讀檔編碼例外），實得：%r" % (viol,)
+
+
+def test_pending646_utf8_traditional_still_clean():
+    """真陰：同路徑之純繁體 UTF-8 檔 → 不得因上一條而誤擋。"""
+    if not _gov_available():
+        return
+    with temp_repo(files={"docs/legacy.md": TRAD}):
+        viol, skip = g.check_simplified(g.staged_files())
+        assert skip is None and viol == [], "純繁體 UTF-8 被誤擋（假陽）：%r" % (viol,)
+
+
+def test_pending647_criterion_pinned_to_origin_main_not_worktree():
+    """真陽：判準取自 `origin/main` 之 blob，非治理庫工作樹檔案。
+
+    ★驗法不靠內容比對（工作樹可能剛好與主線相同），而是驗**來源路徑**：
+      釘選根目錄不得等於 `GOV`，且其判準檔內容須逐位元等於
+      `git show origin/main:00_governance/fitness/detect_simplified.py`。
+    """
+    if not _gov_available():
+        return
+    root, tag = g.criterion_root()
+    assert root is not None, "取不到釘選判準：%s" % (tag,)
+    assert os.path.abspath(root) != os.path.abspath(g.GOV), \
+        "釘選根不得等於治理庫工作樹（否則仍受本機 checkout 劫持）"
+    rel = "00_governance/fitness/detect_simplified.py"
+    pinned = open(os.path.join(root, *rel.split("/")), encoding="utf-8").read()
+    expect = g._run(["git", "-C", g.GOV, "show", "origin/main:" + rel])
+    assert pinned == expect, "釘選內容與 origin/main 不一致"
+
+
+def test_pending647_reports_criterion_commit_id():
+    """真陽：閘須輸出判準來源之版本識別（提交碼），使該次判定可事後稽核。"""
+    if not _gov_available():
+        return
+    root, tag = g.criterion_root()
+    assert root is not None
+    assert isinstance(tag, str) and len(tag) >= 7 and \
+        all(c in "0123456789abcdef" for c in tag), "版本識別須為提交碼，實得：%r" % (tag,)
 
 if __name__ == "__main__":
     for _s in (sys.stdout, sys.stderr):
