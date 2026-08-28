@@ -537,3 +537,35 @@ See AGENTS.md and GOVERNANCE_STATUS.md." > SYSTEM_INDEX.md
     使閘覆蓋面回到 checker 自述之判準。
 - 首次發現：2026-07-25（開工同步表 PR #1091；本機 `python 00_governance/fitness/check_session_audit.py` 同樣 exit 1，已重現）
 - DNA 要素：要素五（可工程實作）／要素十（宣稱≠生效：閘覆蓋面寬於文件宣稱亦屬名實不符）
+
+---
+
+## KF-027｜`semantic-check` 兩段連環擋：先缺 `[PhaseN]`，補了又撞 phase↔artifact 型別不合
+
+- 症狀（**兩段，會連續紅兩次，容易誤判為修法無效**）：
+  1. 第一段 `Phase Lock check` → `FAIL PHASE LOCK VIOLATION: missing [PhaseN]`（exit 1）。
+  2. 補上 `[Phase4]` 後轉為第二段 `Artifact semantic validation` →
+     `SEMANTIC VIOLATION: <檔>.md is governance_doc, Phases [4] allow ['runtime_code', 'state_spec']`（exit 1）。
+- 根本原因：`.github/workflows/artifact_semantic_check.yml:28-29` 由 **HEAD commit 訊息**
+  抽 `[PhaseN]` 得 `PHASES`，再交 `scripts/artifact_semantic_validator.py` 依
+  `PHASE_RULES`（`:17-23`）比對檔案型別。`classify()`（`:32`）把**所有 `.md` 一律判 `governance_doc`**，
+  而 `PHASE_RULES[4]` 只收 `runtime_code`／`state_spec`
+  ⇒ **改 `.md` 卻標 `[Phase4]` 必紅**，兩者互斥。
+- 型別↔Phase 對照（照 `PHASE_RULES` 原文）：
+
+  | Phase | 允許型別 |
+  |---|---|
+  | 0 | `governance_doc` |
+  | 1／2／3 | `governance_doc`＋`state_spec` |
+  | 4 | `runtime_code`＋`state_spec` |
+
+- 標準修法：
+  1. **只改 `.md`** → commit 訊息標 `[Phase0]`（或 1／2／3）。
+  2. **混類 PR（`.md`＋`.py` 同批）** → **同一則訊息內同時標** `[Phase0][Phase4]`；
+     `validator.validate()` 之 docstring（`:36-37`，ADR-0061）明訂多 phase tag 取 **union**，
+     此為設計內行為，非繞道。
+  3. ★**判準取自 HEAD commit 訊息**：既有歷史提交訊息不合者，
+     **不必改寫歷史**（force push 屬不可逆操作）——**補一筆帶正確標記之實質提交推進 HEAD 即可**。
+- 影響 Repo：`prospera-infra-ci`（首見 PR #23，2026-08-28；同批連撞 run `33134266742` 與 `33134510316`）
+- 首次發現：2026-08-28（`skills/SKILL.md` §2b／§2c 增補 PR）
+- DNA 要素：要素四（Commit 四標準）／要素五（可工程實作）
