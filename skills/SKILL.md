@@ -2,7 +2,7 @@
 # ProsperaGen Skills 總索引
 ## Document Header
 - Document Type: Codex
-- Version: v1.1
+- Version: v1.2
 - Status: Approved
 - Owner: prospera-infra-ci/skills/
 - Governing Authority: prospera-engineering-codex v1.0
@@ -88,6 +88,78 @@ Skills 是 ProsperaGen Engineering DNA 的執行觸發器。
 
 ---
 
+## 2c. 模式協議（Mode Protocol）
+
+> **落點說明**：指令指定「緊接同步協議之後」。實查 `skills/*.md` **無「同步協議」節**
+> （`grep -rn "同步協議|## 同步|同步觸發" skills/*.md` 零命中）；同步之判準本體在
+> `prospera-constitution-governance/00_governance/instructions/INSTRUCTIONS_DOD.md` §同步觸發詞。
+> 故本節置於 §2b 開工協議之後（開工 → 同步 → 模式，順序不變），**同步判準不在此複寫，引原檔為準**。
+
+### 2c.1 模式進入（自動，不需重申）
+
+Kevin 說「**同步**」→ 輸出五項同步內容後，**立即自動進入「治理計畫 × PGDA」運作模式**。
+不需 Kevin 再說一次。
+
+**模式定義**：所有工作**掛在當前在辦治理計畫（GOAL）之下**，
+每回合回報**首行**標注：
+
+```
+主軸:<治理計畫名>｜橫軸第N步｜縱軸第M段
+```
+
+軸名與段名一律以原 SSOT 為準——橫軸十步見
+`00_governance/GOVERNANCE_LIFECYCLE_DEFINITIVE.md:12-21`；
+縱軸八段見 `00_governance/PGC_CHAIN_DEFINITIVE.md:29-36`。
+★**不得使用外部私有記號**（承 §2b.3 引用紀律）。
+
+### 2c.2 主軸鎖
+
+Kevin 宣告當日主軸後，**寫入 `ACTIVE_STATE.md` 當日節**。
+此後任何回合，內容若**不服務主軸**，須於**首行自標**：
+
+```
+支線:<事由>，主軸不變
+```
+
+**無此標注而離題＝違規**。Kevin 可一句「**偏移**」召回，被召回即計為
+鐵律四同類問題（`AUTONOMY_RULES.md` §6.15 執行期自主段之「忘記主軸而反應式救火」）。
+
+### 2c.3 斷線續航
+
+任何中斷（claude.ai 新開對話／Claude Code 重啟／`--resume`）後，
+**讀 SKILL 本節 ＋ `ACTIVE_STATE.md` 即恢復模式與主軸**。
+★**不得以「新 session」為由重置模式或主軸**——重置需經 §2c.4。
+
+因此 `ACTIVE_STATE.md` **必含三欄**（缺一即斷線續航失效）：
+
+| 欄 | 內容 |
+|---|---|
+| 當前治理計畫名 | 在辦 GOAL 之檔名或 ID |
+| 雙軸位置 | 橫軸第 N 步／縱軸第 M 段 |
+| 當日主軸 | Kevin 當日宣告之主軸，含宣告日期 |
+
+### 2c.4 退出與變更
+
+**僅 Kevin 明示「收工」或「切換主軸」可變更模式狀態。**
+模式狀態變更**本身**須寫入 `ACTIVE_STATE.md` 留痕（何時進入／何時退出／切到哪條主軸）。
+執行層不得自行判定模式已結束。
+
+### 2c.5 強制點（掛既有回報形狀，不新建裝置）
+
+本節之強制＝**回報首行格式檢查**，與 §2b.1 之並行判定行同掛既有回報形狀閘。
+一回合之回報首行須為下列二者之一，否則格式不符：
+
+1. `主軸:<治理計畫名>｜橫軸第N步｜縱軸第M段`
+2. `支線:<事由>，主軸不變`
+
+★本節為**運作模式之固化（PGDA 橫軸⑥）與強制（⑦）**；
+依 `GOVERNANCE_LIFECYCLE_DEFINITIVE.md:17-18`，⑥＝policy 映射納管、⑦＝機器擋非只提醒。
+**現況誠實標記**：本節之強制目前為**回報形狀之格式約定**，
+`SessionStart` 提示掛鉤（治理庫 `.claude/hooks/`）只做注入提示，**不阻斷**；
+故本節之⑦尚未達「機器擋」全標準，不得宣稱已強制。
+
+---
+
 ## 3. Skill 查閱表
 
 | Skill | 觸發條件 | 主要解決問題 | DNA 要素 | 位置 |
@@ -111,6 +183,8 @@ Skills 是 ProsperaGen Engineering DNA 的執行觸發器。
 [開始任務]
     ↓
 開工協議（並行判準／讀前驗態／引用紀律）  ← §2b
+    ↓
+模式協議（同步後自動進入治理計畫×PGDA 模式）  ← §2c
     ↓
 讀 SKILL.md §3 → 找對應 Skill → 讀完
     ↓
