@@ -2,7 +2,7 @@
 # ProsperaGen Skills 總索引
 ## Document Header
 - Document Type: Codex
-- Version: v1.2
+- Version: v1.3
 - Status: Approved
 - Owner: prospera-infra-ci/skills/
 - Governing Authority: prospera-engineering-codex v1.0
@@ -160,12 +160,45 @@ Kevin 宣告當日主軸後，**寫入 `ACTIVE_STATE.md` 當日節**。
 
 ---
 
+## 2d. 回報規範｜待辦連結（Actionable-Link Discipline）
+
+> 承 §2c.5 回報形狀（`▶過程／■回報／⏸待Kevin` 三段）。本節只治 **`⏸ 待 Kevin` 段**。
+
+### 2d.1 條文
+
+**`⏸ 待 Kevin` 段中，凡需 Kevin 在外部系統動作者（merge／審核／簽署／付款），
+必附可直達之完整 URL，或明確位置（檔案路徑＋行號）。
+無法取得 URL 時，明標【連結取證失敗:<原因>】。**
+
+★**立法事實（2026-08-28）**：本場回報三次列出「請你按 merge」而**未附任何 URL**，
+Kevin 須自行翻找 repo 與 PR 號。待辦落在外部系統而回報只給編號，等同把定位成本轉嫁給人類，
+違 `SKILL-CORE.md` 協作準則③「不當操作員／傳話筒」。
+
+### 2d.2 取證紀律（URL 不得手拼）
+
+- **URL 須來自 `gh`／API 之取證輸出**，例如 `gh pr view <n> --json url -q .url`。
+  **禁止依 `owner/repo/pull/<n>` 規則手拼**——手拼看起來會對，但 repo 改名／轉移／PR 號誤植時
+  無任何機制會咬住，屬 existence-check 同型（沒查過而看起來像查過）。
+- **private 資源須併註可見性與所需權限**。取證指令：`gh repo view --json url,visibility -q .`。
+  若 `visibility` 為 `PRIVATE`，回報中須註明「**需以具 org 權限之 GitHub 帳號登入後開啟**」。
+
+### 2d.3 強制（機器擋）
+
+治理庫 gate0 判斷層閘之 **`R-待辦連結`**：`⏸` 段偵測到外部動作動詞
+（`merge`／`併`／`審`／`簽`／`核准`）而**同段無 URL／檔案路徑，且無 `【連結取證失敗:…】` 標記**
+⇒ **擋下重寫**。
+**FP-safe**：純問答、裁決徵詢（非外部系統動作）放行。
+規則實作附測試，真陽／真陰各 ≥2。
+
+---
+
 ## 3. Skill 查閱表
 
 | Skill | 觸發條件 | 主要解決問題 | DNA 要素 | 位置 |
 |-------|---------|------------|---------|------|
 | **開工協議** | **每次開工前（含每次中斷後恢復）** | 單線漏並行、髒工作樹夾帶 Tier 0 路徑、引鏡像當裁決依據 | 要素一、四、八 | **本文件 §2b** |
 | **模式協議** | **Kevin 說「同步」後，直到明示收工／切換主軸** | 新 session 重置主軸、離題無標注、雙軸位置失聯 | 要素一、二、五 | **本文件 §2c** |
+| **回報規範·待辦連結** | **每次輸出 `⏸ 待 Kevin` 段時** | 待辦只給編號不給 URL、手拼連結、private 資源未註權限 | 要素五、十 | **本文件 §2d** |
 | SKILL-01 | 任何 .yml 寫入或修改前 | YAML syntax error、PS 語法污染 | 要素四、五 | 本文件 §5 |
 | SKILL-02 | 任何目錄建立或 git mv 前 | 大小寫衝突、目錄命名混亂 | 要素六 | 本文件 §6 |
 | SKILL-03 | 任何 token/PAT/secret 操作前 | PAT 失蹤、secret 設定不一致 | 要素八 | SKILL-03.md |
