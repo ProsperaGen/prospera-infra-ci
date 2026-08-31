@@ -6,6 +6,20 @@ on:
         required: false
         default: '3.11'
         type: string
+      # ★S1-A（Kevin L0 2026-08-31 裁 3）：兩者 default false ⇒ 未設定之庫行為與改前逐字相同。
+      collect_root_tests:
+        # true 時併收庫根之 test_*.py / *_test.py（治「只收 tests/ 之受檢母體缺口」，PENDING-645）
+        required: false
+        default: false
+        type: boolean
+      strict_tests:
+        # true 時 pytest job 失敗必擋（關閉 continue-on-error）。
+        # ★與 ADR-0251（P-LEAN 品質類降 L1 不阻 commit）之關係：採**單庫例外**，ADR 本體不改
+        #   （Kevin L0 2026-08-31 裁 2）。理由＝0251 之 P-LEAN 針對非生產庫；
+        #   走向 PROD_GATE 之產物不得跑在非阻擋測試上。P-OS 進 REAL 前重議 0251。
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: code-ci-${{ github.ref }}
@@ -14,7 +28,8 @@ concurrency:
 jobs:
   pytest:
     runs-on: ubuntu-latest
-    continue-on-error: true  # ADR-0251 P-LEAN:品質類降L1(nightly追),不阻commit
+    # ★S1-A：strict_tests=true ⇒ continue-on-error 為 false（失敗必擋）；未設定者仍為 true，行為同改前（ADR-0251 P-LEAN:品質類降L1(nightly追),不阻commit）。
+    continue-on-error: ${{ !inputs.strict_tests }}
     if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v4
@@ -33,14 +48,34 @@ jobs:
         # 改為「跑存在的測試目錄，讓其 exit code 浮現」——通用邏輯非 repo-specific 路徑、
         # 非放寬全域收集；保留「無測試目錄→skip」fallback。continue-on-error 仍在（ADR-0251
         # 品質類非阻斷），但紅可見（真陰真陽 run 為證）。
+        env:
+          COLLECT_ROOT_TESTS: ${{ inputs.collect_root_tests }}
         run: |
-          if [ -d 11_tests ]; then
-            python -m pytest 11_tests/ -q --tb=short
-          elif [ -d tests ]; then
-            python -m pytest tests/ -q --tb=short
-          else
-            echo "✅ 無測試目錄，跳過"
+          set -e
+          if [ "$COLLECT_ROOT_TESTS" != "true" ]; then
+            # ★預設路徑：內層三分支指令與改前逐字相同（他庫零行為變更）
+            if [ -d 11_tests ]; then
+              python -m pytest 11_tests/ -q --tb=short
+            elif [ -d tests ]; then
+              python -m pytest tests/ -q --tb=short
+            else
+              echo "✅ 無測試目錄，跳過"
+            fi
+            exit 0
           fi
+          # ★collect_root_tests=true：三處併收，並印出實際收集範圍
+          # （用 if/fi 非 `[ -d x ] && y`：後者在 set -e 下之退出語意有歧義，不留問號）
+          TARGETS=""
+          if [ -d 11_tests ]; then TARGETS="$TARGETS 11_tests"; fi
+          if [ -d tests ]; then TARGETS="$TARGETS tests"; fi
+          ROOTT="$(ls -1 test_*.py 2>/dev/null || true) $(ls -1 *_test.py 2>/dev/null || true)"
+          TARGETS="$(echo $TARGETS $ROOTT | xargs || true)"
+          if [ -z "$TARGETS" ]; then
+            echo "✅ 三處皆無測試目標，跳過"
+            exit 0
+          fi
+          echo "pytest targets: $TARGETS"
+          python -m pytest $TARGETS -q --tb=short
 
   detect-simplified:
     runs-on: ubuntu-latest
