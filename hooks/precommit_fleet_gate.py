@@ -10,8 +10,14 @@
   「CI 機器閘…強制」與實際不符）→ 客戶交付物側**實際零閘**。
   global core.hooksPath 是唯一能覆蓋客戶 repo 的執行點，故 fleet 級檢查掛此。
 
-檢查（皆 fail-open，任何例外/找不到判準模組 → exit 0，缺閘不 brick commit）：
+檢查：
   1. 簡體零容忍：staged 之文字檔（判準沿用治理 repo canonical `detect_simplified`，禁另建字集）
+     ★S1-A（PENDING-646，2026-08-31）：判準模組不可及**不再靜默 fail-open**。
+       原 `return []` 與「零違規」不可分辨 ⇒ 缺閘偽裝成通過，全機 staged 檔靜默放行。
+       改為印 BLOCKING 並回一筆哨兵違規（擋 commit）。爆炸半徑＝治理 repo 未 checkout
+       或 PROSPERA_GOV_ROOT 設錯之機器，commit 會被擋；此為**刻意**（缺閘要可見），
+       修法印在訊息裡（checkout 治理 repo 或設 PROSPERA_GOV_ROOT）。
+     ※ 單檔讀取／解碼失敗仍 continue，但印 WARN 指名該檔未受檢（不再靜默漏檢）。
   2. 交付物閘：staged 路徑含 `deliverables/` 時，跑 `check_deliverable_gate`（含其簡體檢查）
 
 scope：只對 ProsperaGen/ccktaiwan remote 生效（同 prepush_cost_gate 之自 scope 原則），
@@ -66,16 +72,25 @@ def _load(path, name):
     return mod
 
 
+def _sentinel(reason: str, detail: str) -> list:
+    """判準不可及之哨兵違規：讓「無法檢查」與「檢查後零違規」可分辨（PENDING-646）。"""
+    print(f"[fleet-gate] ❌ BLOCKING：簡體判準模組{reason} ⇒ 無法檢查，不得靜默放行。")
+    print(f"[fleet-gate]   detail: {detail}")
+    print(f"[fleet-gate]   修法：checkout 治理 repo，或設 PROSPERA_GOV_ROOT 指向其根目錄"
+          f"（現值 GOV={GOV}）。")
+    return [("<簡體判準不可及>", f"{reason}: {detail}")]
+
+
 def check_simplified(files: list) -> list:
-    """回 [(file, hits)]。判準模組不可及 → [] (fail-open)。"""
+    """回 [(file, hits)]。★判準模組不可及 → 回哨兵違規（非靜默 []），見模組 docstring。"""
     ds = os.path.join(GOV, "00_governance", "fitness", "detect_simplified.py")
     if not os.path.isfile(ds):
-        return []
+        return _sentinel("不存在", ds)
     try:
         mod = _load(ds, "_fleet_detect_simplified")
         exclude = getattr(mod, "SELF_EXCLUDE", set())
-    except Exception:
-        return []
+    except Exception as e:
+        return _sentinel("載入失敗", f"{type(e).__name__}: {e} @ {ds}")
     viol = []
     for f in files:
         if os.path.splitext(f)[1].lower() not in _TEXT_EXT:
@@ -87,7 +102,10 @@ def check_simplified(files: list) -> list:
             if raw.startswith(b"\xef\xbb\xbf"):
                 raw = raw[3:]
             hits = mod.find_simplified(raw.decode("utf-8", errors="ignore"))
-        except Exception:
+        except Exception as e:
+            # ★不再靜默：指名「該檔未受檢」，缺漏可見（PENDING-646）
+            print(f"[fleet-gate] ⚠ WARN：{f} 讀取/檢查失敗，"
+                  f"該檔未受簡體檢查（{type(e).__name__}: {e}）")
             continue
         if hits:
             viol.append((f, "".join(hits)))
