@@ -14,17 +14,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: checkout 受掃 repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: target
 
       - name: checkout 掃描器（infra-ci）
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ProsperaGen/prospera-infra-ci
           path: infra-ci
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
