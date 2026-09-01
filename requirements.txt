@@ -1,5 +1,5 @@
 # ── Prospera SYSTEM HEADER (ADR-0032/SBOM) ──
 # 性質:data ｜設計:Kevin 架構 ｜執行:AI 工具(claude.ai+Claude Code)
 # 驗證:無機制驗證 ｜IP:創造性歸 Kevin(發明人), AI 為執行工具 (ADR-0032)
-pytest>=7.0.0
-pyyaml>=6.0
+pytest>=9.1.1
+pyyaml>=6.0.3
