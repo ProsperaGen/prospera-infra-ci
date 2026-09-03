@@ -5,6 +5,8 @@
 
 真陽（gate 該擋就擋）：staged 檔含簡體 → 違規；deliverables/*.docx 缺 render.log/md → 違規。
 真陰（gate 不該擋就放行）：純繁體 → clean；非本組織 remote → skip；判準源不可及 → fail-open。
+xlsx 真閘六案（判準 2026-09-04 收窄）：只以 `t="inlineStr"` >0 退件；
+  **缺 `xl/sharedStrings.xml` 不再是退件理由**（純數值檔合法無 sharedStrings）。
 
 ★簡體測資一律以 `chr(0x....)` 碼位構造，**禁寫字面簡體字**——
   否則本檔自身會被 repo 的簡體零容忍閘擋下（自我否定測試檔）。
@@ -13,11 +15,13 @@ pytest 收集（python -m pytest hooks/ -q），亦可獨立跑：python hooks/t
 """
 import contextlib
 import importlib
+import io
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
+import zipfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import precommit_fleet_gate as g  # noqa: E402
@@ -199,6 +203,133 @@ def test_shim_wires_fleet_gate_before_local_delegation():
     assert '"$c" -c "import sys"' in txt, \
         "直譯器探測須實際執行，否則會命中 WindowsApps python3 stub"
     assert '[ "$rc" -eq 1 ] && exit 1' in txt, "須只對違規碼 1 攔截（其餘 fail-open）"
+
+
+# ── xlsx inlineStr 真閘 六案（判準 2026-09-04 收窄：只留 inlineStr>0 即退件）──
+#   ★「缺 sharedStrings 即退件」已自判準刪除；案②③⑥即該變更之行為級證據。
+#   測試用 xlsx 一律**即時產生**（openpyxl／zipfile 手工組），不進二進位檔入 repo。
+#   ★不吃 pytest fixture（_run_standalone 以 fn() 直呼），一律經 `g.` 取用函式。
+
+def _xlsx_bytes(shared: bool, inline: int) -> bytes:
+    """手工組最小 xlsx。shared=是否含 xl/sharedStrings.xml；inline=t="inlineStr" 格數。"""
+    if inline:
+        cells = "".join(f'<c r="A{i + 1}" t="inlineStr"><is><t>x{i}</t></is></c>'
+                        for i in range(inline))
+    else:
+        cells = '<c r="A1"><v>123</v></c>'
+    sheet = ('<?xml version="1.0" encoding="UTF-8"?>'
+             '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+             f'<sheetData><row r="1">{cells}</row></sheetData></worksheet>')
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("xl/workbook.xml", "<workbook/>")
+        z.writestr("xl/worksheets/sheet1.xml", sheet)
+        if shared:
+            z.writestr("xl/sharedStrings.xml",
+                       '<sst count="1" uniqueCount="1"><si><t>x</t></si></sst>')
+    return buf.getvalue()
+
+
+def _numeric_xlsx_bytes() -> bytes:
+    """第六案素材：純數值、完全無字串之 xlsx（openpyxl 直出；無 openpyxl 則手工組）。"""
+    try:
+        from openpyxl import Workbook
+    except Exception:                                # noqa: BLE001
+        print("      [note] openpyxl 不可用 → 改以 zipfile 手工組純數值 xlsx")
+        return _xlsx_bytes(shared=False, inline=0)
+    wb = Workbook()
+    ws = wb.active
+    for r, row in enumerate([[1, 2.5, 3], [4, 5, 6.75]], start=1):
+        for c, v in enumerate(row, start=1):
+            ws.cell(row=r, column=c, value=v)
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def _probe(data: bytes):
+    """回 (是否含 sharedStrings, worksheets 內 inlineStr 計數)——供 fixture 自我驗證與逐案報表。"""
+    z = zipfile.ZipFile(io.BytesIO(data))
+    names = z.namelist()
+    n = sum(z.read(x).decode("utf-8", errors="ignore").count('t="inlineStr"')
+            for x in names
+            if x.startswith("xl/worksheets/") and x.endswith(".xml"))
+    return ("xl/sharedStrings.xml" in names), n
+
+
+def _xlsx_case(title, rel, data, expect_block, expect_shared, expect_inline):
+    """跑單案並印「案名 → 預期 → 實際 → 通過與否」。expect_block=True 表應退件。"""
+    shared, inline = _probe(data)
+    # fixture 自我驗證：素材若不是宣稱的形狀，該案等於沒測到判準（假通過）
+    assert shared is expect_shared, \
+        f"{title}：素材 sharedStrings 應為 {expect_shared}，實際 {shared}（fixture 失真）"
+    assert inline == expect_inline, \
+        f"{title}：素材 inlineStr 應為 {expect_inline}，實際 {inline}（fixture 失真）"
+    with temp_repo(files={rel: data}):
+        viol = g.check_xlsx_shared_strings(g.staged_files())
+        actual_block = bool(viol)
+        exp_s = "退件" if expect_block else "放行"
+        act_s = "退件" if actual_block else "放行"
+        detail = viol[0]["msg"] if viol else "無違規"
+        print(f"    {title}｜素材: sharedStrings={shared}/inlineStr={inline}"
+              f"｜預期: {exp_s}｜實際: {act_s}（{detail}）"
+              f"｜{'PASS' if actual_block == expect_block else 'FAIL'}")
+        assert actual_block == expect_block, \
+            f"{title}：預期{exp_s}，實際{act_s}｜viol={viol}"
+        # 行為級：main() 退出碼。簡體判準源不可及時 main() 恆回哨兵違規，該斷言無意義故略過。
+        if _gov_available():
+            rc = g.main()
+            assert rc == (1 if expect_block else 0), \
+                f"{title}：main() 應回 {1 if expect_block else 0}，實際 {rc}"
+
+
+def test_xlsx_case1_shared_present_no_inline_passes():
+    """案①（真陰）：有 sharedStrings、inlineStr=0（soffice round-trip 後之形狀）→ 放行。"""
+    _xlsx_case("案①有 sharedStrings + inlineStr=0", "deliv/a.xlsx",
+               _xlsx_bytes(shared=True, inline=0),
+               expect_block=False, expect_shared=True, expect_inline=0)
+
+
+def test_xlsx_case2_no_shared_no_inline_passes():
+    """案②（判準變更核心，真陰）：缺 sharedStrings 但 inlineStr=0 → 必須放行，不得退件。"""
+    _xlsx_case("案②缺 sharedStrings + inlineStr=0", "deliv/b.xlsx",
+               _xlsx_bytes(shared=False, inline=0),
+               expect_block=False, expect_shared=False, expect_inline=0)
+
+
+def test_xlsx_case3_no_shared_with_inline_blocks():
+    """案③（真陽，變更後新可達分支）：缺 sharedStrings 且 inlineStr=3（openpyxl 直出含字串之形狀）→ 退件。
+
+    改前此路徑在「缺 sharedStrings」即 continue，根本沒數過 inlineStr；本案守住該回歸。
+    """
+    _xlsx_case("案③缺 sharedStrings + inlineStr=3", "deliv/c.xlsx",
+               _xlsx_bytes(shared=False, inline=3),
+               expect_block=True, expect_shared=False, expect_inline=3)
+
+
+def test_xlsx_case4_shared_present_with_inline_blocks():
+    """案④（真陽）：有 sharedStrings 但仍殘留 inlineStr=2 → 退件（唯一保留判準）。"""
+    _xlsx_case("案④有 sharedStrings + inlineStr=2", "deliv/d.xlsx",
+               _xlsx_bytes(shared=True, inline=2),
+               expect_block=True, expect_shared=True, expect_inline=2)
+
+
+def test_xlsx_case5_working_dir_is_skipped():
+    """案⑤（真陰）：`_working/` 為迭代區，即使 inlineStr=3 亦略過放行（交付/迭代二階）。"""
+    _xlsx_case("案⑤_working/ 下 inlineStr=3", "_working/e.xlsx",
+               _xlsx_bytes(shared=False, inline=3),
+               expect_block=False, expect_shared=False, expect_inline=3)
+
+
+def test_xlsx_case6_pure_numeric_no_strings_passes():
+    """案⑥（新增，真陰）：純數值、完全無字串之 xlsx（無 sharedStrings 亦無 inlineStr）→ 放行。
+
+    openpyxl 直出純數值檔實測 namelist 無 `xl/sharedStrings.xml`；舊判準會誤擋（假陽）。
+    """
+    _xlsx_case("案⑥純數值無字串（openpyxl 直出）", "deliv/f.xlsx",
+               _numeric_xlsx_bytes(),
+               expect_block=False, expect_shared=False, expect_inline=0)
 
 
 # ── 獨立執行入口 ─────────────────────────────────────────────────

@@ -19,6 +19,11 @@
        修法印在訊息裡（checkout 治理 repo 或設 PROSPERA_GOV_ROOT）。
      ※ 單檔讀取／解碼失敗仍 continue，但印 WARN 指名該檔未受檢（不再靜默漏檢）。
   2. 交付物閘：staged 路徑含 `deliverables/` 時，跑 `check_deliverable_gate`（含其簡體檢查）
+  3. xlsx inlineStr 真閘（Kevin 2026-09-03 裁；判準 2026-09-04 收窄）：staged `.xlsx`
+     （`_working/` 下略過，交付/迭代二階）之 worksheets 不得殘留 `t="inlineStr"`。
+     ★「缺 `xl/sharedStrings.xml` 即退件」**已刪**：純數值／無字串之 xlsx 本來就不會有
+     sharedStrings，缺它本身無害，退它是假陽。真正害 claude.ai 預覽全白的是 inlineStr
+     （實測：openpyxl 直出 sharedStrings=False／inlineStr=3；過 soffice round-trip 後 True／0）。
 
 scope：只對 ProsperaGen/ccktaiwan remote 生效（同 prepush_cost_gate 之自 scope 原則），
 其餘 remote 一律放行不干擾。
@@ -28,6 +33,7 @@ scope：只對 ProsperaGen/ccktaiwan remote 生效（同 prepush_cost_gate 之�
 import os
 import subprocess
 import sys
+import zipfile
 
 for _s in (sys.stdout, sys.stderr):
     try:
@@ -112,22 +118,68 @@ def check_simplified(files: list) -> list:
     return viol
 
 
+def _skip_working(norm: str) -> bool:
+    """交付/迭代二階：`_working/` 為迭代區，不受交付判準約束（Kevin 2026-09-03 裁）。
+
+    ★來源標示：本規則為當次口頭裁定，治理 repo 尚無對應規則檔——不引不存在之 ADR。
+    以路徑「段」比對（非裸子字串），避免誤殺 `docs/my_working_notes/` 這類名稱。
+    """
+    return norm == "_working" or norm.startswith("_working/") or "/_working/" in norm
+
+
+def check_xlsx_shared_strings(files: list) -> list:
+    """staged `.xlsx` 之 inlineStr 真閘。回 [{"msg": ...}]，由 main() 直印。
+
+    唯一判準：`xl/worksheets/*.xml` 不得殘留 `t="inlineStr"`（>0 即退件）。
+    ★2026-09-04 刪除「缺 `xl/sharedStrings.xml` 即退件」：純數值／無字串之 xlsx 合法地
+      沒有 sharedStrings，缺它不構成退件理由——inlineStr=0 一律放行。
+      函式名保留不改（避免動到呼叫點與檔名）。
+    ★開檔失敗不靜默跳過（同 check_simplified 之 PENDING-646 立場）：印 WARN 指名該檔未受檢。
+    """
+    viol = []
+    for f in files:
+        norm = f.replace("\\", "/")
+        if os.path.splitext(norm)[1].lower() != ".xlsx":
+            continue
+        if _skip_working(norm):
+            continue
+        try:
+            with zipfile.ZipFile(f) as z:
+                names = z.namelist()
+                n = sum(z.read(x).decode("utf-8", errors="ignore").count('t="inlineStr"')
+                        for x in names
+                        if x.startswith("xl/worksheets/") and x.endswith(".xml"))
+        except Exception as e:
+            print(f"[fleet-gate] ⚠ WARN：{f} 開檔/檢查失敗，"
+                  f"該檔未受 xlsx sharedStrings 檢查（{type(e).__name__}: {e}）")
+            continue
+        if n:
+            viol.append({"msg": f"{f}：殘留 inlineStr {n} 處"})
+    return viol
+
+
 def check_deliverables(files: list) -> list:
-    """staged 觸及 deliverables/ 時跑交付物閘。回 violations（含缺 render.log/md 與簡體）。"""
-    if not any("deliverables/" in f.replace("\\", "/") for f in files):
-        return []
-    gate = os.path.join(GOV, "00_governance", "fitness", "check_deliverable_gate.py")
-    if not os.path.isfile(gate):
-        return []
-    try:
-        from pathlib import Path
-        mod = _load(gate, "_fleet_deliverable_gate")
-        dirs = sorted({os.path.dirname(f) for f in files
-                       if "deliverables/" in f.replace("\\", "/")})
-        res = mod.scan([Path(d) for d in dirs if os.path.isdir(d)])
-        return res.get("violations", [])
-    except Exception:
-        return []
+    """staged 觸及 deliverables/ 時跑交付物閘；另對 staged .xlsx 跑 sharedStrings 真閘。
+
+    回 violations（含缺 render.log/md 與簡體；xlsx 項以 `msg` 鍵回）。
+    ★既有交付物閘之判準、條件、例外處置**原封不動**——僅由 early-return 收束為區塊，
+      使 xlsx 檢查不被「未觸及 deliverables/」之提前返回連帶跳過。
+    """
+    viol = []
+    if any("deliverables/" in f.replace("\\", "/") for f in files):
+        gate = os.path.join(GOV, "00_governance", "fitness", "check_deliverable_gate.py")
+        if os.path.isfile(gate):
+            try:
+                from pathlib import Path
+                mod = _load(gate, "_fleet_deliverable_gate")
+                dirs = sorted({os.path.dirname(f) for f in files
+                               if "deliverables/" in f.replace("\\", "/")})
+                res = mod.scan([Path(d) for d in dirs if os.path.isdir(d)])
+                viol.extend(res.get("violations", []))
+            except Exception:
+                pass
+    viol.extend(check_xlsx_shared_strings(files))
+    return viol
 
 
 def main() -> int:
@@ -150,7 +202,10 @@ def main() -> int:
         bad = True
         print("[fleet-gate] ❌ BLOCKING：交付物閘未過（③驗證閘，缺一不交付）")
         for v in dlv:
-            print(f"  - {v.get('docx')}: 缺 {v.get('missing')}")
+            if v.get("msg"):
+                print(f"  - {v['msg']}")
+            else:
+                print(f"  - {v.get('docx')}: 缺 {v.get('missing')}")
 
     if bad:
         print("[fleet-gate] 修正後再 commit；判準源＝治理 repo canonical（禁另建）。")
