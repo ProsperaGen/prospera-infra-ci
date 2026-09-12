@@ -54,17 +54,25 @@ def _make_gov(tmp_path, detector_src=STUB_DETECTOR):
     return gov
 
 
-def _run(repo, gov_root):
+def _run(repo, gov_root, ioencoding="utf-8", utf8_mode=True):
+    """跑閘。`ioencoding` 模擬 Windows 舊環境（`cp950`）；`utf8_mode` 對應 `-X utf8`。"""
     env = dict(os.environ)
     env["PROSPERA_GOV_ROOT"] = str(gov_root)
-    env["PYTHONIOENCODING"] = "utf-8"
-    return subprocess.run([sys.executable, HOOK], cwd=str(repo), env=env,
+    env["PYTHONIOENCODING"] = ioencoding
+    env.pop("PYTHONUTF8", None)
+    cmd = [sys.executable] + (["-X", "utf8"] if utf8_mode else []) + [HOOK]
+    return subprocess.run(cmd, cwd=str(repo), env=env,
                           capture_output=True, text=True,
                           encoding="utf-8", errors="replace")
 
 
 def _stage(repo, name, text):
     (repo / name).write_text(text, encoding="utf-8")
+    _git(repo, "add", name)
+
+
+def _stage_bytes(repo, name, raw: bytes):
+    (repo / name).write_bytes(raw)
     _git(repo, "add", name)
 
 
@@ -123,3 +131,63 @@ def test_範圍外remote_一律放行(tmp_path):
     r = _run(repo, tmp_path / "no_such_gov")
     assert r.returncode == 0, r.stdout + r.stderr
     assert "BLOCKING" not in r.stdout
+
+
+# ── PENDING-646 之結案條件：cp950 環境下之成對測例 ───────────────────
+#   該筆逐字＝「在 cp950 環境（PYTHONIOENCODING=cp950）餵含簡體字之檔須退出碼 非零，
+#   餵純繁體檔須 exit 0；成對測例（真陽真陰各 ≥1）缺一不算完成」。
+
+def test_cp950環境_真陽_簡體檔仍擋下(tmp_path):
+    """真陽：舊環境編碼設定不得使閘走 fail-open 分支而假綠。"""
+    repo = _make_repo(tmp_path)
+    gov = _make_gov(tmp_path)
+    _stage(repo, "bad.md", SIMPLIFIED_SAMPLE + "\n")
+    r = _run(repo, gov, ioencoding="cp950")
+    assert r.returncode != 0, r.stdout + r.stderr
+    assert "略過" not in r.stdout, "不得再出現舊 fail-open 訊息"
+
+
+def test_cp950環境_真陰_純繁體檔放行(tmp_path):
+    repo = _make_repo(tmp_path)
+    gov = _make_gov(tmp_path)
+    _stage(repo, "clean.md", "繁體測試內容\n")
+    r = _run(repo, gov, ioencoding="cp950")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_非UTF8檔_判紅不得靜默當乾淨(tmp_path):
+    """★核心：原 `errors="ignore"` 把壞位元組丟掉後當乾淨檔放行 ⇒ 受檢但等同未檢。"""
+    repo = _make_repo(tmp_path)
+    gov = _make_gov(tmp_path)
+    # Big5 編碼之繁體字串，非合法 UTF-8
+    _stage_bytes(repo, "big5.md", "繁體測試".encode("cp950") + b"\n")
+    r = _run(repo, gov, ioencoding="cp950")
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "編碼例外" in r.stdout, r.stdout
+    assert "big5.md" in r.stdout, r.stdout
+
+
+def test_非ASCII檔名_不得被靜默略過(tmp_path):
+    """★quotepath 假綠：預設 quotepath 使非 ASCII 檔名被跳脫引號包住 ⇒ 副檔名比對失準。"""
+    repo = _make_repo(tmp_path)
+    gov = _make_gov(tmp_path)
+    _stage(repo, "測試檔.md", SIMPLIFIED_SAMPLE + "\n")
+    r = _run(repo, gov)
+    assert r.returncode == 1, r.stdout + r.stderr
+    assert "測試檔.md" in r.stdout, r.stdout
+
+
+def test_git不可及_明示SKIPPED而非計為通過(tmp_path):
+    """★空母體與取不到母體必須可分辨：後者印 SKIPPED，不得讀成「無 staged 檔＝通過」。"""
+    repo = _make_repo(tmp_path)
+    gov = _make_gov(tmp_path)
+    _stage(repo, "bad.md", SIMPLIFIED_SAMPLE + "\n")
+    env_path_broken = tmp_path / "empty_bin"
+    env_path_broken.mkdir()
+    env = dict(os.environ)
+    env["PROSPERA_GOV_ROOT"] = str(gov)
+    env["PATH"] = str(env_path_broken)          # 路徑上找不到 git
+    r = subprocess.run([sys.executable, "-X", "utf8", HOOK], cwd=str(repo), env=env,
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "SKIPPED" in r.stdout and "未執行，非通過" in r.stdout, r.stdout
