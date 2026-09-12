@@ -90,7 +90,8 @@ def test_deliverable_missing_log_and_md_is_violation():
         print("[SKIP] check_deliverable_gate 不可及")
         return
     with temp_repo(files={"deliverables/report.docx": b"PK\x03\x04fake-docx"}):
-        viol = g.check_deliverables(g.staged_files())
+        viol, skip = g.check_deliverables(g.staged_files())
+        assert skip is None, f"不應 SKIPPED：{skip}"
         assert viol, "缺 render.log+md 之 docx 應違規，實際放行"
         missing = viol[0].get("missing")
         assert "render.log" in missing and "md" in missing, f"missing 不完整：{missing}"
@@ -107,7 +108,8 @@ def test_deliverable_md_simplified_is_violation():
         "deliverables/r.render.log": "rendered ok\n",
         "deliverables/r.md": SIMP,
     }):
-        viol = g.check_deliverables(g.staged_files())
+        viol, skip = g.check_deliverables(g.staged_files())
+        assert skip is None, f"不應 SKIPPED：{skip}"
         assert viol, "交付物 md 含簡體應違規"
         assert any("簡體" in m for m in viol[0].get("missing", [])), viol
 
@@ -155,10 +157,18 @@ def test_binary_and_unknown_ext_ignored():
         assert g.check_simplified(g.staged_files()) == [], "非文字副檔名不應被掃"
 
 
-# ── fail-open：判準源不可及不得 brick commit ──────────────────────
+# ── 判準源不可及：簡體判準判紅（S1-A），交付物閘明示 SKIPPED（S1-B）────
 
-def test_fail_open_when_gov_root_unreachable():
-    """fail-open：PROSPERA_GOV_ROOT 指向不存在路徑 → 含簡體亦放行（缺閘不 brick commit）。"""
+def test_gov_root_unreachable_is_blocking_not_fail_open():
+    """★本測例原名 `test_fail_open_when_gov_root_unreachable`，斷言「判準不可及應 fail-open」。
+
+    該斷言自 S1-A（`PENDING-646`，2026-08-31）起即與實作相反並**持續紅燈**——
+    S1-A 已把「簡體判準模組不可及」改為哨兵違規（判紅），理由是
+    「無法檢查」與「檢查後零違規」不可分辨即缺閘偽裝成通過。
+    本次（S1-B）依現行契約改寫斷言，**非放寬**：
+      ・簡體判準不可及 → 哨兵違規，`main()` 回 1（擋）
+      ・交付物閘判準不可及 → 明示 `SKIPPED（未執行，非通過）`，不判紅（工具面，不同級）
+    """
     prev = os.environ.get("PROSPERA_GOV_ROOT")
     os.environ["PROSPERA_GOV_ROOT"] = os.path.join(
         tempfile.gettempdir(), "prospera_gov_root_does_not_exist_zzz")
@@ -167,9 +177,13 @@ def test_fail_open_when_gov_root_unreachable():
         assert not os.path.isdir(mod.GOV), "測試前提：GOV 路徑須不存在"
         with temp_repo(files={"docs/note.md": SIMP,
                               "deliverables/r.docx": b"PK\x03\x04fake"}):
-            assert mod.check_simplified(mod.staged_files()) == [], "判準不可及應 fail-open"
-            assert mod.check_deliverables(mod.staged_files()) == [], "交付物閘不可及應 fail-open"
-            assert mod.main() == 0, "fail-open 下 main() 必須回 0"
+            sim = mod.check_simplified(mod.staged_files())
+            assert sim, "簡體判準不可及應回哨兵違規（S1-A），不得靜默放行"
+            assert "不可及" in sim[0][0], sim
+            dlv, skip = mod.check_deliverables(mod.staged_files())
+            assert dlv == [], "交付物閘不可及不應產出違規"
+            assert skip and "不可及" in skip, f"交付物閘不可及須明示 SKIPPED，實得：{skip}"
+            assert mod.main() == 1, "簡體判準不可及下 main() 須回 1（擋）"
     finally:
         if prev is None:
             os.environ.pop("PROSPERA_GOV_ROOT", None)
