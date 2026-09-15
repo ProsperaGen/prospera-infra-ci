@@ -11,15 +11,36 @@
 全生態系下次 run 自動生效 —— 解 PENDING-024 的「required check 無 producer / 護欄劇場」。
 
 退出碼語意：
-  0 = 通過（含 validation 警告，non-blocking）
-  1 = 硬違規（DIRECTORY_SCHEMA 目錄違規 / Fitness A 本體 hardcode）→ 擋 PR
+  0 = 通過（客戶庫可含 validation 警告，non-blocking）
+  1 = 硬違規（DIRECTORY_SCHEMA 目錄違規 / Fitness A 本體 hardcode）→ 擋 PR；
+      ＋我方庫之 validation 警告（序52，L0 Kevin 2026-09-16 卡5 選 A）→ 擋 PR
 
 來源：2026-06-09 L3 治理稽核 root-cause-1 修復。runner：ubuntu-latest / python3 stdlib only。
 """
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+# ── 客戶庫名單（序52：自動檢查升為擋下，只擋我方專案，客戶端維持記錄級）──
+# 本處為判準 SSOT；.github/workflows/reusable-governance.yml「PENDING 格式閘」內有同名常數之副本
+# （該 heredoc 跑在呼叫端 checkout，無法 import 本檔），兩處須逐字一致，
+# tests/test_own_repo_blocking.py 以同一張測資表驅動兩處並比對常數行守漂移。
+# 判斷依據＝GITHUB_REPOSITORY（Actions 預設環境變數，值同 github.repository），比較前 casefold。
+# ★命名依賴風險（已知、未解）：
+#   1. prospera-client-prosperagen 為我方租戶，但符合前綴 → 被當客戶放行（不擋）。
+#   2. 日後客戶庫若不以 prospera-client- 命名 → 被當我方擋下。
+#   新增／改名客戶庫時須同步檢查本名單。
+# ★fail-closed：GITHUB_REPOSITORY 為空或未設定 → 視為我方庫（擋）。判準失效時寧可誤擋我方，
+#   不可誤放；代價是本機直接執行本檔（無該環境變數）時警告亦升為違規。
+CLIENT_REPO_PREFIXES = ("prosperagen/prospera-client-",)
+CLIENT_REPO_EXACT = frozenset({"prosperagen/prospera-product-client-template"})
+
+
+def is_client_repo(repo):
+    r = (repo or "").strip().casefold()
+    return bool(r) and (r.startswith(CLIENT_REPO_PREFIXES) or r in CLIENT_REPO_EXACT)
 
 # Windows cp950 console 下 print emoji 會 UnicodeEncodeError，強制 stdout 為 utf-8。
 try:
@@ -115,10 +136,16 @@ def main():
     check_fitness()
     check_pii_chokepoint()
 
-    if warnings:
-        print("\n-- WARNINGS (non-blocking) --")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    if warnings and is_client_repo(repo):
+        print(f"\n-- WARNINGS (non-blocking，客戶庫記錄級：{repo}) --")
         for w in warnings:
             print("  ⚠️", w)
+    elif warnings:
+        print(f"\n-- WARNINGS → 升為違規（我方庫擋下：{repo or '<GITHUB_REPOSITORY 未設定>'}） --")
+        for w in warnings:
+            print("  ⚠️", w)
+        violations.extend(warnings)
     if violations:
         print("\n❌ GOVERNANCE CHECK FAILED:")
         for v in violations:
