@@ -1,0 +1,50 @@
+# Prospera SYSTEM HEADER (ADR-0032/SBOM) | 性質:ci(客戶 repo L1 conformance 記錄級閘,可重用) | 設計:Kevin 架構(發明人, L0 2026-09-16 序44 裁「客戶範本裝規範檢查,維持記錄級不擋」)
+# 執行:AI 工具(Claude Code) | 驗證:範本 PR CI 實跑（缺項印 WARN、exit 0） | IP:創造性歸 Kevin(發明人), AI 為執行工具
+#
+# 檢查器 SSOT＝prospera-constitution-governance/00_governance/repo_governance/client_repo_conformance.py
+# （governance 為 private，客戶庫 CI 取不到 ⇒ 鏡像於本庫 scripts/client_repo_conformance.py）。
+# 記錄級（observe）：**不帶 --strict**，缺項由程式印 [WARN] 並 exit 0。
+# ★不掛 continue-on-error、不用 `|| true`：程式崩潰（例外／路徑錯 exit 2）仍須紅，防「閘壞掉但全綠」。
+# 改為擋下（--strict）須另經 L0 裁示。
+name: Reusable Client Conformance (L1 observe)
+
+on:
+  workflow_call:
+
+jobs:
+  client-conformance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: checkout 受檢 repo
+        uses: actions/checkout@v4
+        with:
+          path: target
+
+      - name: checkout 檢查器（infra-ci）
+        uses: actions/checkout@v4
+        with:
+          repository: ProsperaGen/prospera-infra-ci
+          path: infra-ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: L1 conformance（記錄級，不帶 --strict）
+        env:
+          PYTHONUTF8: '1'
+        run: python infra-ci/scripts/client_repo_conformance.py target
+
+      # 留痕：機器可讀結果寫入 Step Summary（恆 exit 0 之閘須有正向證據證明確實跑過）
+      - name: 結果留痕（Step Summary）
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          set -eo pipefail
+          {
+            echo '## L1 client conformance（observe）'
+            echo '```json'
+            python infra-ci/scripts/client_repo_conformance.py target --json
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
