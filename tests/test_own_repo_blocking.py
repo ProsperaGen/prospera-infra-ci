@@ -89,6 +89,24 @@ def _run_gov_check(cwd, repo):
                           capture_output=True, text=True, encoding="utf-8")
 
 
+def test_heredoc_extraction_matches_yaml_parse():
+    """字串切割抽出之 heredoc 須與 YAML 解析後 run 內容逐字相同（防縮排問題致 Actions 實跑另一份）。
+
+    CI 只裝 pytest，無 PyYAML 時略過；本機有 yaml 時必跑。
+    """
+    yaml = pytest.importorskip("yaml")
+    doc = yaml.safe_load(REUSABLE_GOV.read_text(encoding="utf-8"))
+    steps = doc["jobs"]["governance-check"]["steps"]
+    run = next(s["run"] for s in steps if s.get("name", "").startswith("PENDING 格式閘"))
+    lines = run.splitlines()
+    start = next(i for i, l in enumerate(lines) if "<<'PY'" in l)
+    end = next(i for i in range(start + 1, len(lines)) if lines[i] == "PY")
+    assert "\n".join(lines[start + 1:end]) + "\n" == _extract_pending_heredoc()
+    # 繁體中文強制閘之 run 亦須含固定語系與碼位字集
+    zh = next(s["run"] for s in steps if s.get("name") == "繁體中文強制閘")
+    assert "LC_ALL=C.UTF-8 grep -rP '" + _simplified_gate_pattern() + "'" in zh
+
+
 # ── 判準函式 ──
 @pytest.mark.parametrize("repo,block,why", CASES, ids=_ids(CASES))
 def test_gov_check_classifier(repo, block, why):
