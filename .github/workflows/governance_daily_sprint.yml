@@ -21,18 +21,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout prospera-infra-ci
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Checkout prospera-agent-monitor
         continue-on-error: true
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ProsperaGen/prospera-agent-monitor
           token: ${{ secrets.PROSPERA_DASHBOARD_TOKEN }}
           path: prospera-agent-monitor
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
@@ -67,7 +67,7 @@ jobs:
 
       - name: Send completion notification
         continue-on-error: true
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v18
         if: always()
         with:
           server_address: smtp.gmail.com

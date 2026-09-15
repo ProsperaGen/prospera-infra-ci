@@ -22,7 +22,7 @@ jobs:
     if: ${{ !contains(github.event.head_commit.message, '[hold]') && !contains(github.ref, 'hold') }}  # PROSPERA_HOLD_GUARD ADR-0169
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Validate CONTRACT.md
         run: |

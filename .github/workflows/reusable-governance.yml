@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor != 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
       # 字集以 \x{碼位} 表示（等價於原字面 10 字：U+8FD9 U+8BF4 U+9879 U+5B9E U+8BE5 U+4E0E U+5BF9 U+4ECE U+5C06 U+5E94），
