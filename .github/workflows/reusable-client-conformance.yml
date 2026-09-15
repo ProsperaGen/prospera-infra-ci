@@ -11,6 +11,10 @@ name: Reusable Client Conformance (L1 observe)
 on:
   workflow_call:
 
+concurrency:
+  group: client-conformance-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   client-conformance:
     runs-on: ubuntu-latest
