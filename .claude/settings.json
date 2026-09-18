@@ -25,6 +25,7 @@
       "Bash(rm -r:*)",
       "Bash(git rebase:*)",
       "Bash(git branch -D:*)",
+      "Bash(gh repo delete:*)",
       "PowerShell(git push --force*)",
       "PowerShell(git push -f*)",
       "PowerShell(git push --force-with-lease*)",
@@ -35,6 +36,7 @@
       "PowerShell(git clean -fdx*)",
       "PowerShell(git rebase*)",
       "PowerShell(git branch -D*)",
+      "PowerShell(gh repo delete*)",
       "PowerShell(Remove-Item*-Recurse*)",
       "PowerShell(rm -r*)"
     ]
