@@ -30,6 +30,16 @@ def check(name, got, want):
 def run():
     print("=== pre-execution 成本閘 真陰/真陽 + v1.1 動態閾值 ===")
     os.environ["PROSPERA_CI_BUDGET"] = "50"          # 動態 budget=50 → block_at=45, warn_at=37.5
+    _months = g.BLOCK_RATIO_BY_MONTH; g.BLOCK_RATIO_BY_MONTH = {}   # 既有案例固定用基準 0.9
+
+    # v1.2 逐月覆寫：2026-09=1.00（Kevin 核准），2026-10 回 0.90
+    from datetime import datetime, timezone
+    check("v1.2: 2026-09 比例=1.00", _months.get("2026-09"), 1.00)
+    g.BLOCK_RATIO_BY_MONTH = _months
+    check("v1.2: 2026-10 回基準 0.90", g.block_ratio(datetime(2026, 10, 1, tzinfo=timezone.utc)), 0.90)
+    check("v1.2: 2026-09 → 1.00", g.block_ratio(datetime(2026, 9, 30, tzinfo=timezone.utc)), 1.00)
+    g.BLOCK_RATIO_BY_MONTH = {}
+
     os.environ.pop("PROSPERA_COST_OVERRIDE", None)
 
     # 真陰①：net $46 > block_at $45 → BLOCK

@@ -22,6 +22,7 @@ import os
 import sys
 import json
 import subprocess
+from datetime import datetime, timezone
 
 # hook 在 Windows 終端（cp950）印訊息 → 強制 UTF-8 輸出，避免 emoji/中文 UnicodeEncodeError
 for _s in (sys.stdout, sys.stderr):
@@ -30,15 +31,22 @@ for _s in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-__version__ = "1.1.0"                      # v1.1（2026-07-13）：閘值動態化（org budget×0.9），修 $20 固定值致 override 常態化
+__version__ = "1.2.0"                      # v1.2（2026-09-19）：BLOCK_RATIO 可逐月覆寫（2026-09 Kevin 核准 1.00）；v1.1：閘值動態化（org budget×0.9）
 ORG = "ProsperaGen"
 RATE_PER_MIN = 0.008                       # 保守（2026 實際 $0.006，寧高估）
 BLOCK_RATIO = 0.90                         # 達 budget×0.9 → BLOCK（留 10% headroom 給 stop-usage lag）
+BLOCK_RATIO_BY_MONTH = {"2026-09": 1.00}   # 逐月覆寫（UTC 年-月）；2026-09 Kevin 核准門檻 $90→$100，僅本月適用，10 月起回 BLOCK_RATIO
 WARN_RATIO = 0.75                          # budget×0.75 → 響鈴但放行
 DEFAULT_BUDGET = 45.0                      # budget 讀不到時的 fallback（env PROSPERA_CI_BUDGET 可覆寫）
 OVERRIDE_STREAK_ALARM = 3                  # override 連續 N 次 → 強制警告+記 excursion（防常態化）
 LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prepush_cost_ledger.jsonl")
 EXCURSION = os.path.join(os.path.dirname(os.path.abspath(__file__)), "prepush_excursion_ledger.jsonl")
+
+
+def block_ratio(now=None):
+    """當月 BLOCK 比例：BLOCK_RATIO_BY_MONTH 有該月即用之，否則 BLOCK_RATIO。"""
+    ym = (now or datetime.now(timezone.utc)).strftime("%Y-%m")
+    return BLOCK_RATIO_BY_MONTH.get(ym, BLOCK_RATIO)
 
 
 def budget_amount():
@@ -182,7 +190,8 @@ def decide(remote_url: str, refs_stdin: str) -> int:
         return 0                            # 非 ProsperaGen → 不干擾
 
     budget, bsrc = budget_amount()
-    block_at = round(budget * BLOCK_RATIO, 2)
+    ratio = block_ratio()
+    block_at = round(budget * ratio, 2)
     warn_at = round(budget * WARN_RATIO, 2)
 
     if os.environ.get("PROSPERA_COST_OVERRIDE") == "1":
@@ -218,12 +227,12 @@ def decide(remote_url: str, refs_stdin: str) -> int:
     projected = round(net + est["cost"], 2)
     line = (f"當月實付 net=${net}（gross=${gross}, {src}）＋本次估 ${est['cost']}"
             f"（{est['minutes']}分, {est['n_files']}檔）= 投影 ${projected} / 閾值 ${block_at}"
-            f"（budget ${budget} × {BLOCK_RATIO}, {bsrc}）")
+            f"（budget ${budget} × {ratio}, {bsrc}）")
 
     if net >= block_at or projected >= block_at:
         print("=" * 66)
         print(f"[cost-gate] ⛔ BLOCK：{line}")
-        print(f"  達/將超 budget ${budget} 的 {int(BLOCK_RATIO*100)}% → 擋 push（workflow 不觸發＝零 Actions 成本）。")
+        print(f"  達/將超 budget ${budget} 的 {int(ratio*100)}% → 擋 push（workflow 不觸發＝零 Actions 成本）。")
         print(f"  變更觸發：{'；'.join(est['reasons'])}")
         print("  出路：① 本機驗收後再一次 push（py_compile/pytest 本機跑，省整筆 CI）")
         print("        ② 確需上 CI：PROSPERA_COST_OVERRIDE=1 git push（明確、記帳；連續 3 次會告警）")
