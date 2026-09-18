@@ -77,21 +77,17 @@ jobs:
           echo "pytest targets: $TARGETS"
           python -m pytest $TARGETS -q --tb=short
 
+  # ★2026-09-18 L0 裁示：原 detect-simplified（簡體字 grep）已拆除，
+  #   字形檢查只在治理庫交付出口 00_governance/delivery_exit/convert_and_check。
+  #   保留同名 job 且恆略過（`if: false`），**不做任何檢查**：prospera-product-gengrant、
+  #   prospera-product-client-template 之分支保護必要檢查仍含「ci / detect-simplified」，
+  #   略過之 job 回報為 skipped，GitHub 不因此擋合併，且不佔 runner。
+  #   兩庫自必要檢查移除該項後，本 job 整段刪除。
   detect-simplified:
+    if: false
     runs-on: ubuntu-latest
-    if: github.actor != 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: 繁體中文強制閘
-        run: |
-          if grep -rP '这|说|项|实|该|与|对|从|将|应' \
-            --include='*.md' --include='*.py' . 2>/dev/null | grep -v '.git'; then
-            echo "❌ 發現簡體中文"
-            exit 1
-          fi
-          echo "✅ 繁體中文檢查通過"
+      - run: echo "本 job 不做任何檢查"
 
   llm-chokepoint:
     runs-on: ubuntu-latest

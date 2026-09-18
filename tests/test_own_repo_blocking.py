@@ -102,9 +102,6 @@ def test_heredoc_extraction_matches_yaml_parse():
     start = next(i for i, l in enumerate(lines) if "<<'PY'" in l)
     end = next(i for i in range(start + 1, len(lines)) if lines[i] == "PY")
     assert "\n".join(lines[start + 1:end]) + "\n" == _extract_pending_heredoc()
-    # 繁體中文強制閘之 run 亦須含固定語系與碼位字集
-    zh = next(s["run"] for s in steps if s.get("name") == "繁體中文強制閘")
-    assert "LC_ALL=C.UTF-8 grep -rP '" + _simplified_gate_pattern() + "'" in zh
 
 
 # ── 判準函式 ──
@@ -154,42 +151,3 @@ def test_gov_check_clean_never_blocks(tmp_path, repo, block, why):
     (tmp_path / "CONTRACT.md").write_text("# contract\n", encoding="utf-8")
     r = _run_gov_check(tmp_path, repo)
     assert r.returncode == 0, f"{why}\n{r.stdout}\n{r.stderr}"
-
-
-# ── 附帶：繁體中文強制閘字集由字面改 \x{碼位}（fleet 簡體閘會擋字面），驗證等價不弱化 ──
-# 原字面 10 字之碼位（本檔不留字面簡體）
-_ORIGINAL_CODEPOINTS = [0x8FD9, 0x8BF4, 0x9879, 0x5B9E, 0x8BE5, 0x4E0E, 0x5BF9, 0x4ECE, 0x5C06, 0x5E94]
-
-
-def _simplified_gate_pattern():
-    import re
-    text = REUSABLE_GOV.read_text(encoding="utf-8")
-    m = re.search(r"LC_ALL=C\.UTF-8 grep -rP '([^']+)'", text)
-    assert m, "繁體中文強制閘須以 LC_ALL=C.UTF-8 固定語系（C 語系下 \\x{} 報錯＝靜默放行）"
-    return m.group(1)
-
-
-def test_simplified_gate_pattern_equivalent():
-    import re
-    pat = _simplified_gate_pattern()
-    cps = [int(h, 16) for h in re.findall(r"\\x\{([0-9a-fA-F]+)\}", pat)]
-    assert cps == _ORIGINAL_CODEPOINTS
-    assert pat == "|".join(r"\x{%04x}" % c for c in _ORIGINAL_CODEPOINTS)
-
-
-# Windows 下由非 msys 行程叫 Git for Windows 之 grep，語系環境變數不生效（實測 -P 對 \x{} 恆回 1），
-# 故僅在 POSIX（CI ubuntu-latest＝閘實際執行環境）跑行為測試；字集等價由上一支測試在各平台驗。
-@pytest.mark.skipif(os.name == "nt" or __import__("shutil").which("grep") is None,
-                    reason="非 POSIX 或無 grep（行為以 CI ubuntu 為準）")
-def test_simplified_gate_grep_behaviour(tmp_path):
-    pat = _simplified_gate_pattern()
-    hit, clean = tmp_path / "hit", tmp_path / "clean"
-    hit.mkdir(); clean.mkdir()
-    for i, c in enumerate(_ORIGINAL_CODEPOINTS):
-        (hit / f"h{i}.md").write_text("前文" + chr(c) + "後文\n", encoding="utf-8")
-    (clean / "c.md").write_text("這說項實該與對從將應\n", encoding="utf-8")
-    env = dict(os.environ, LC_ALL="C.UTF-8")
-    r = subprocess.run(["grep", "-rlP", pat, "--include=*.md", str(hit)], env=env, capture_output=True)
-    assert r.returncode == 0 and len(r.stdout.splitlines()) == len(_ORIGINAL_CODEPOINTS), r.stderr
-    r = subprocess.run(["grep", "-rlP", pat, "--include=*.md", str(clean)], env=env, capture_output=True)
-    assert r.returncode == 1, r.stderr

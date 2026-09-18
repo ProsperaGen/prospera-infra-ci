@@ -7,18 +7,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  detect-simplified:
+  # ★2026-09-18 L0 裁示：原 detect-simplified（簡體字 grep，本工作流唯一檢查）已拆除，
+  #   字形檢查只在治理庫交付出口 00_governance/delivery_exit/convert_and_check。
+  #   本工作流目前**無任何檢查項**。保留一個恆略過之 job，只為使呼叫端
+  #   （prospera-data-architecture、prospera-infra-registry 之 ci.yml）仍為合法工作流；
+  #   `if: false` ⇒ 不佔 runner、不計 Actions 分鐘。
+  no-checks:
+    if: false
     runs-on: ubuntu-latest
-    if: github.actor != 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - name: 繁體中文強制閘
-        run: |
-          if grep -rP '这|说|项|实|该|与|对|从|将|应|这' \
-            --include='*.md' . 2>/dev/null | grep -v '.git'; then
-            echo "❌ 發現簡體中文"
-            exit 1
-          fi
-          echo "✅ 繁體中文檢查通過"
+      - run: echo "本工作流無檢查項"

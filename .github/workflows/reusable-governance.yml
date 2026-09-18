@@ -14,18 +14,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 1
-      # 字集以 \x{碼位} 表示（等價於原字面 10 字：U+8FD9 U+8BF4 U+9879 U+5B9E U+8BE5 U+4E0E U+5BF9 U+4ECE U+5C06 U+5E94），
-      # 本檔不留字面簡體，否則 fleet pre-commit 簡體閘擋下任何對本檔之提交。
-      # ★LC_ALL=C.UTF-8 必要：C 語系下 grep -P 之 \x{…} 會報錯（結束碼 2）而被 if 當成未命中＝靜默放行。
-      # 等價性由 tests/test_own_repo_blocking.py::test_simplified_gate_pattern_equivalent 驗證。
-      - name: 繁體中文強制閘
-        run: |
-          if LC_ALL=C.UTF-8 grep -rP '\x{8fd9}|\x{8bf4}|\x{9879}|\x{5b9e}|\x{8be5}|\x{4e0e}|\x{5bf9}|\x{4ece}|\x{5c06}|\x{5e94}' \
-            --include='*.md' . 2>/dev/null | grep -v '.git'; then
-            echo "❌ 發現簡體中文"
-            exit 1
-          fi
-          echo "✅ 繁體中文檢查通過"
+      # ★2026-09-18 L0 裁示：原「繁體中文強制閘」（簡體字 grep）已拆除，
+      #   字形檢查只在治理庫交付出口 00_governance/delivery_exit/convert_and_check。
       # 序52（L0 Kevin 2026-09-16，TIER0_BATCH_2026-07-17_KCARDS 卡5 選 A）：
       #   我方庫＝有格式問題即結束碼 1（擋下）；客戶庫與客戶範本＝維持只印警告（記錄級）。
       # 判斷依據＝GITHUB_REPOSITORY（Actions 預設環境變數，值同 github.repository；
