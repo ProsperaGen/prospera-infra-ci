@@ -1,49 +1,20 @@
 #!/bin/sh
-# Prospera 並存 shim — pre-commit 委派回各 repo 自身 .git/hooks/pre-commit。
+# Prospera 並存 shim — pre-commit 只委派回各 repo 自身 .git/hooks/pre-commit，本身不做任何檢查。
 #
-# ★為何需要（2026-07-20 Kevin 裁「禁靜默犧牲閘」）：
-#   global `core.hooksPath` 一設，git **完全忽略** 各 repo 的 .git/hooks/ ——
-#   而 pre-commit framework 正是裝在那裡（治理 repo 的 Fitness Gate／簡體零容忍／Drift Guard）。
-#   故原 install_hooks.py（只出貨 pre-push）一裝，等於用成本閘換掉三個防漂移閘，且**靜默無感**。
-#   本 shim 令兩者並存：成本閘走 pre-push，各 repo 原有 pre-commit 照跑。
+# ★為何仍需要：global `core.hooksPath` 一設，git **完全忽略** 各 repo 的 .git/hooks/；
+#   本 shim 令各 repo 原有 pre-commit（目錄結構檢查等）照跑。
+#
+# ★2026-09-18 L0 裁示：fleet 級提交前閘（全機簡體字檢查＋交付物檢查）已拆除，
+#   本 shim 不再引用任何字形判準；字形檢查只保留在治理庫交付出口
+#   `00_governance/delivery_exit/convert_and_check`。
 #
 # ★路徑取法：用 `git rev-parse --git-dir` 而非 `--git-path hooks/...`——
 #   後者**會被 core.hooksPath 改寫**（實測），委派目標會指回本目錄造成無限遞迴。
 #
-# ★2026-07-20 追加 fleet 級閘（precommit_fleet_gate.py）：
-#   客戶 repo（5 個含 deliverables/ 者）實測**無本地 pre-commit**，
-#   `check_deliverable_gate.py` 亦未接任何 workflow → 客戶交付物側實際零閘。
-#   委派回本地 hook 只救「本來就有 hook」的 repo；沒有 hook 的照樣裸奔。
-#   故本 shim 先跑 fleet 閘（簡體零容忍＋交付物閘），再委派本地 hook。
-#   順序：fleet 閘先 → 非 0 即擋（不再往下委派）；通過才 exec 本地 hook。
-#
-# fail-open：無 git／無本地 hook／無 python／閘檔不存在／任何例外 → exit 0（缺閘不 brick commit）。
+# fail-open：無 git／無本地 hook → exit 0。
 GITDIR="$(git rev-parse --git-dir 2>/dev/null)" || exit 0
 [ -z "$GITDIR" ] && exit 0
 
-# ── ① fleet 級閘 ────────────────────────────────────────────────
-# 本檔所在目錄＝core.hooksPath 目錄，fleet 閘與本 shim 同目錄出貨。
-HOOKDIR="$(dirname "$0")"
-FLEET="$HOOKDIR/precommit_fleet_gate.py"
-if [ -f "$FLEET" ]; then
-  # ★不可只用 `command -v`：Windows 上 `python3` 常解析到 WindowsApps 的
-  #   App Execution Alias stub（實測 `python3 -V` → rc=49、無輸出），
-  #   命中它等於閘永遠不跑卻靜默放行。故以「真的跑得起來」為準探測。
-  PY=""
-  for c in python3 python py; do
-    if command -v "$c" >/dev/null 2>&1 && "$c" -c "import sys" >/dev/null 2>&1; then
-      PY="$c"; break
-    fi
-  done
-  if [ -n "$PY" ]; then
-    "$PY" "$FLEET"
-    rc=$?
-    # 只有明確的違規碼 1 才擋；其餘（閘自身壞掉／找不到判準）一律放行。
-    [ "$rc" -eq 1 ] && exit 1
-  fi
-fi
-
-# ── ② 委派回各 repo 自身 .git/hooks/pre-commit ──────────────────
 LOCAL="$GITDIR/hooks/pre-commit"
 [ -x "$LOCAL" ] && exec "$LOCAL" "$@"
 [ -f "$LOCAL" ] && exec sh "$LOCAL" "$@"
