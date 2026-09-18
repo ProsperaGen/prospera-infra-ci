@@ -1,6 +1,10 @@
 <!-- Prospera SYSTEM HEADER (ADR-0032/SBOM) | 性質:doc(版本紀錄) | 設計:Kevin 架構 | 執行:AI 工具(Claude Code) | 驗證:git tag | IP:創造性歸 Kevin(發明人), AI 為執行工具 -->
 # cost-gate CHANGELOG
 
+## cost-gate v1.2.0 — 2026-09-19（門檻逐月覆寫）
+- `BLOCK_RATIO_BY_MONTH = {"2026-09": 1.00}`：2026-09 Kevin 核准 BLOCK 線 $90→$100（org budget $100 × 1.00），僅本月適用；10 月起自動回 `BLOCK_RATIO` 0.90。GitHub 預算本身未改。
+- 測試：既有案例固定基準 0.9，另加 2026-09／2026-10 比例案例。
+
 ## cost-gate v1.1.0 — 2026-07-13（閘值算術修正）
 **修正 v1.0 bug：閘值 $20 固定值在 net>$20 後導致 override 常態化**（每次 push 都要 override → 繞過變常態 → 閘等於失效，正是 BGE 警告的反模式）。
 - **動態閾值**：`budget_amount()` 讀當月 org Actions budget（org-budget-api，實測 $50）× 0.9 = $45 為 BLOCK 線；讀不到 → env `PROSPERA_CI_BUDGET`（預設 45）。net $29.87 < $45 → 正常放行（live 驗證，不再逼 override）。
