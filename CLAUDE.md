@@ -1,4 +1,8 @@
 <!-- Prospera SYSTEM HEADER (ADR-0032/SBOM) | 性質:doc | 設計:Kevin 架構 | 執行:AI 工具(claude.ai+Claude Code) | 驗證:無機制驗證 | IP:創造性歸 Kevin(發明人), AI 為執行工具 -->
+## 語言規則
+
+語言：所有回報、commit message、PR 標題與內文、檔案內文一律繁體中文。程式碼識別字、路徑、指令、雜湊維持原文。使用者以其他語言提問時仍以繁體中文回報。
+
 # CLAUDE.md — Prospera governance contract
 
 **Authority**: ccktaiwan
