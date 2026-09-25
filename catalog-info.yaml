@@ -1,0 +1,19 @@
+# Prospera SYSTEM HEADER (ADR-0032/SBOM) | 性質:identity(repo 身分檔) | 設計:Kevin 架構(發明人) | 執行:AI 工具(Claude Code) | 驗證:test_repo_treatment_check.py | IP:創造性歸 Kevin(發明人), AI 為執行工具
+#
+# repo 身分檔（Backstage catalog-info 相容）
+# 規格：prospera-constitution-governance/00_governance/repo_governance/CATALOG_INFO_SPEC.md
+# 建立：GOVERNANCE_PLAN 波 1（2026-09-25）；型別依計畫波 1 型別表，角色依 ECOSYSTEM_ROLE_MAP，Ring 依 ECOSYSTEM_DESIGN_v3.0
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: prospera-infra-ci               # 與 GitHub repo 名相同，例：prospera-engine-api
+  description: 共用 CI 流程（reusable workflows）      # 一句話說明本 repo 的角色
+  annotations:
+    prosperagen.com/role: A              # 角色軸（ECOSYSTEM_ROLE_MAP）：A 服務執行／B 規範文件／C 交付物
+    prosperagen.com/check-tier: B  # 檢查分級軸（ORG_TOPOLOGY §2.4）：A 程式庫／B 治理庫／C 資料庫
+spec:
+  type: infra            # 類型軸，9 選 1（全小寫）：constitution engine standard blueprint product infra agent client core
+  lifecycle: production  # 生命週期軸：experimental（實驗）／production（在用）／dormant（休眠）／deprecated（封存）
+  owner: user:kevin         # 擁有者：Kevin
+  system: r6        # 歸屬軸（Ring 與產品群）：r0～r7、r4a、r4b；R5 產品群庫寫 r5-<產品群>（consulting／brand／operation／growth／grant），例：r5-brand；Gen Grant（原 Gen Resource）寫 r5-grant，Kevin 2026-09-25 裁示，現階段收斂，不代表 Resource 已永久取消
+  domain: axis1-gen-os        # 歸屬軸（Prospera 擴充欄位）：axis1-gen-os（軸一 Gen OS）或 axis2-product-groups（軸二五大產品群）
