@@ -9,11 +9,40 @@ concurrency:
 jobs:
   # ★2026-09-18 L0 裁示：原 detect-simplified（簡體字 grep，本工作流唯一檢查）已拆除，
   #   字形檢查只在治理庫交付出口 00_governance/delivery_exit/convert_and_check。
-  #   本工作流目前**無任何檢查項**。保留一個恆略過之 job，只為使呼叫端
-  #   （prospera-data-architecture、prospera-infra-registry 之 ci.yml）仍為合法工作流；
-  #   `if: false` ⇒ 不佔 runner、不計 Actions 分鐘。
-  no-checks:
-    if: false
+  # ★2026-09-25 GOVERNANCE_PLAN 波 2：原恆略過之 no-checks job（`if: false`）改為實際執行之秘密掃描。
+  #   prospera-data-architecture 改呼叫 reusable-code-ci.yml 後，本工作流之呼叫端只剩範圍外休眠庫
+  #   prospera-infra-registry；為不使其工作流失效，本檔不刪。
+  # GOVERNANCE_PLAN 波 2（2026-09-25）：秘密掃描實際執行（I4 secret_scan_executed）。做法同治理庫 secret_scan.yml。
+  #   非必要檢查，不加入任何分支保護必要清單；有外洩即本 job 紅燈。
+  secret-scan:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.actor != 'dependabot[bot]'
+    permissions:
+      contents: read
     steps:
-      - run: echo "本工作流無檢查項"
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks（本次變更範圍）
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -e
+          if [ "$EVENT" = "pull_request" ]; then
+            RANGE="$PR_BASE..$SHA"
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            RANGE="$SHA~1..$SHA"
+          else
+            RANGE="$BEFORE..$SHA"
+          fi
+          VER=8.18.4
+          curl -sSL -o /tmp/gl.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          tar -xzf /tmp/gl.tar.gz -C /tmp gitleaks && sudo mv /tmp/gitleaks /usr/local/bin/
+          CFG=""
+          if [ -f .gitleaks.toml ]; then CFG="--config .gitleaks.toml"; fi
+          if ! git cat-file -e "${RANGE%%..*}^{commit}" 2>/dev/null; then RANGE="$SHA"; fi
+          gitleaks detect $CFG --log-opts="$RANGE" --redact -v --exit-code 1
