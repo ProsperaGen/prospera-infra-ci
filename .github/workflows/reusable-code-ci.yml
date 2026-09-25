@@ -118,3 +118,38 @@ jobs:
               print('❌ 直接 LLM 呼叫（繞過 chokepoint）：', violations); sys.exit(1)
           print('✅ LLM Chokepoint 檢查通過')
           PY
+
+  # GOVERNANCE_PLAN 波 2（2026-09-25）：秘密掃描實際執行（I4 secret_scan_executed）。做法同治理庫 secret_scan.yml。
+  #   非必要檢查，不加入任何分支保護必要清單；有外洩即本 job 紅燈。
+  secret-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.actor != 'dependabot[bot]'
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: gitleaks（本次變更範圍）
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -e
+          if [ "$EVENT" = "pull_request" ]; then
+            RANGE="$PR_BASE..$SHA"
+          elif [ -z "$BEFORE" ] || [ "$BEFORE" = "0000000000000000000000000000000000000000" ] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            RANGE="$SHA~1..$SHA"
+          else
+            RANGE="$BEFORE..$SHA"
+          fi
+          VER=8.18.4
+          curl -sSL -o /tmp/gl.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          tar -xzf /tmp/gl.tar.gz -C /tmp gitleaks && sudo mv /tmp/gitleaks /usr/local/bin/
+          CFG=""
+          if [ -f .gitleaks.toml ]; then CFG="--config .gitleaks.toml"; fi
+          if ! git cat-file -e "${RANGE%%..*}^{commit}" 2>/dev/null; then RANGE="$SHA"; fi
+          gitleaks detect $CFG --log-opts="$RANGE" --redact -v --exit-code 1
