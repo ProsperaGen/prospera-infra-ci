@@ -126,7 +126,7 @@ def test_client_list_constants_identical_in_both_places():
 # ── 52-2：reusable-governance PENDING 格式閘實跑 ──
 @pytest.mark.parametrize("repo,block,why", CASES, ids=_ids(CASES))
 def test_pending_gate_with_issue(tmp_path, repo, block, why):
-    (tmp_path / "bad.md").write_text("待辦 PENDING-ART-031 格式錯\n", encoding="utf-8")
+    (tmp_path / "bad.md").write_text("待辦 PENDING-31 格式錯\n", encoding="utf-8")
     r = _run_heredoc(tmp_path, repo)
     assert r.returncode == (1 if block else 0), f"{why}\n{r.stdout}\n{r.stderr}"
 
@@ -151,3 +151,21 @@ def test_gov_check_clean_never_blocks(tmp_path, repo, block, why):
     (tmp_path / "CONTRACT.md").write_text("# contract\n", encoding="utf-8")
     r = _run_gov_check(tmp_path, repo)
     assert r.returncode == 0, f"{why}\n{r.stdout}\n{r.stderr}"
+
+
+# ── 2026-09-25：PENDING 格式接受代號（PENDING-<2～5 大寫字母>-<三位數字>）──
+@pytest.mark.parametrize("text,ok,why", [
+    ("PENDING-ART-031", True, "真陽：客戶命名空間編號"),
+    ("PENDING-031", True, "三位數字"),
+    ("PENDING-AR-031", True, "誤判情境一：代號拼錯但格式合法，本檢查只查格式"),
+    ("PENDING-GOV-031", True, "誤判情境三：代號與治理庫前綴相同不視為撞號"),
+    ("PENDING-31", False, "真陰：兩位數字"),
+    ("PENDING-ART-31", False, "真陰：代號後兩位數字"),
+    ("PENDING-art-031", False, "誤判情境二：小寫代號正確拒絕"),
+])
+def test_pending_format_namespaced(tmp_path, text, ok, why):
+    (tmp_path / "x.md").write_text(f"待辦 {text}\n", encoding="utf-8")
+    r = _run_heredoc(tmp_path, "ProsperaGen/prospera-blueprint-ip")
+    assert r.returncode == (0 if ok else 1), f"{why}\n{r.stdout}\n{r.stderr}"
+    if text == "PENDING-art-031":
+        assert "大寫" in r.stdout
