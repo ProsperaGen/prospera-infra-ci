@@ -29,14 +29,8 @@ jobs:
           PHASES=$(echo "$MSG" | grep -oP '(?<=\[Phase)\d(?=\])' | sort -u | paste -sd, -)
           echo "phases=${PHASES:-4}" >> $GITHUB_OUTPUT
           echo "Detected phases: ${PHASES:-4}"
-      - name: Phase Lock check
-        run: |
-          MSG=$(git log --format=%B -n 1 ${{ github.event.pull_request.head.sha }})
-          if ! echo "$MSG" | grep -qE "\[Phase[0-6]\]"; then
-            echo "FAIL PHASE LOCK VIOLATION: missing [PhaseN]"
-            exit 1
-          fi
-          echo "OK Phase Lock OK"
+      # 2026-09-25 移除「Phase Lock check」（要求 head 提交訊息帶 [PhaseN]）：屬 2026-09-17 已封存治理規則的殘留，
+      #   無損害紀錄，依 GOVERNANCE_FINAL.md 移除（Kevin 2026-09-25 指示）。上一步之 phase 標記擷取保留，無標記時預設 4。
       - name: Artifact semantic validation (多 phase union)
         run: |
           pip install -q --break-system-packages pathlib
