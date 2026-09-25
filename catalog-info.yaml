@@ -11,6 +11,7 @@ metadata:
   annotations:
     prosperagen.com/role: A              # 角色軸（ECOSYSTEM_ROLE_MAP）：A 服務執行／B 規範文件／C 交付物
     prosperagen.com/check-tier: B  # 檢查分級軸（ORG_TOPOLOGY §2.4）：A 程式庫／B 治理庫／C 資料庫
+    prosperagen.com/business_outcome: "Gen Governance：全庫共用 CI"  # Kevin 2026-09-26 裁示；出處：ORG_TOPOLOGY 第 109 行
 spec:
   type: infra            # 類型軸，9 選 1（全小寫）：constitution engine standard blueprint product infra agent client core
   lifecycle: production  # 生命週期軸：experimental（實驗）／production（在用）／dormant（休眠）／deprecated（封存）
