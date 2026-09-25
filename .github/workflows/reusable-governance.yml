@@ -38,7 +38,10 @@ jobs:
           # 2026-09-25（Kevin 指示）：接受 PENDING-<三位數字> 與 PENDING-<代號>-<三位數字>（代號 2～5 個大寫英文字母，例 PENDING-ART-031）。
           #   ★本檢查只查格式，不查該待辦是否存在（代號拼錯如 PENDING-AR-031 格式合法即通過）；
           #   ★代號與治理庫待辦前綴相同不視為撞號（完整編號含代號）；小寫代號被拒並提示改用大寫。
-          VALID_PENDING = re.compile(r'PENDING-(?:\d{3}|[A-Z]{2,5}-\d{3})(?!\d)')
+          # 2026-09-25 再放寬（Kevin 指示，不改既有編號）：另涵蓋治理庫登記簿既有三種寫法——
+          #   單字母＋兩位數（PENDING-Y01）、代號－兩字母－兩位數（PENDING-GENPACE-IP-01）、代號－英文字（PENDING-CLAUDE-UPDATE）。
+          #   仍拒絕 PENDING-31、PENDING-ART-31 與小寫代號。
+          VALID_PENDING = re.compile(r'PENDING-(?:\d{3}(?!\d)|[A-Z]{2,5}-\d{3}(?!\d)|[A-Z]\d{2}(?!\d)|[A-Z]{2,7}-[A-Z]{2}-\d{2}(?!\d)|[A-Z]{2,7}-[A-Z]{2,7}(?![A-Za-z0-9]))')
           LOWER_CODE = re.compile(r'PENDING-[a-z]{2,5}-\d{3}(?!\d)')
           issues = []
           for root, _, files in os.walk('.'):
@@ -58,7 +61,7 @@ jobs:
               print('⚠️ PENDING 格式警告（客戶庫，記錄級不擋）：', repo, issues)
           else:
               print('❌ PENDING 格式違規（我方庫，擋下）：', repo or '<GITHUB_REPOSITORY 未設定>', issues)
-              print('   格式須為 PENDING-<三位數字>（例 PENDING-031）或 PENDING-<2～5 個大寫英文字母代號>-<三位數字>（例 PENDING-ART-031）；本檢查只查格式，不查待辦是否存在')
+              print('   格式須為 PENDING-<三位數字>（例 PENDING-031）、PENDING-<2～5 個大寫英文字母代號>-<三位數字>（例 PENDING-ART-031），或治理庫既有之 PENDING-Y01、PENDING-GENPACE-IP-01、PENDING-CLAUDE-UPDATE 寫法；本檢查只查格式，不查待辦是否存在')
               sys.exit(1)
           PY
 

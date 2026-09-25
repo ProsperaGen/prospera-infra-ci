@@ -162,6 +162,9 @@ def test_gov_check_clean_never_blocks(tmp_path, repo, block, why):
     ("PENDING-31", False, "真陰：兩位數字"),
     ("PENDING-ART-31", False, "真陰：代號後兩位數字"),
     ("PENDING-art-031", False, "誤判情境二：小寫代號正確拒絕"),
+    ("PENDING-Y01", True, "治理庫既有：單字母＋兩位數"),
+    ("PENDING-GENPACE-IP-01", True, "治理庫既有：代號－兩字母－兩位數"),
+    ("PENDING-CLAUDE-UPDATE", True, "治理庫既有：代號－英文字"),
 ])
 def test_pending_format_namespaced(tmp_path, text, ok, why):
     (tmp_path / "x.md").write_text(f"待辦 {text}\n", encoding="utf-8")
