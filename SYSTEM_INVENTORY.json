@@ -3,7 +3,7 @@
   "repo": "prospera-infra-ci",
   "total_src_files": 87,
   "ground_truth_check": {
-    "complete_at_head": "1ffc88e78bcd",
+    "complete_at_head": "c251133d509b",
     "src_count_at_head": 87,
     "inventoried": 87,
     "complete": true,
@@ -185,8 +185,8 @@
       "nature": "config",
       "ip": "創造性歸 Kevin(發明人), AI 為執行工具 (ADR-0032)",
       "header_status": "bare",
-      "checksum_sha256": "ed1ba3bbd98ee7bd422501af25913527aca3523a2be856b7923c65468e8f35a6",
-      "version_git_sha": "734899f",
+      "checksum_sha256": "b1271b2bb08afcece35db226221f4050dbce9f09750ac989c3c87646112a820c",
+      "version_git_sha": "e8780c9",
       "active_or_archive": "active"
     },
     {
@@ -484,8 +484,8 @@
       "nature": "config",
       "ip": "創造性歸 Kevin(發明人), AI 為執行工具 (ADR-0032)",
       "header_status": "unified",
-      "checksum_sha256": "2642ace39454c96df8efc0bf17351c73af1e402ea313d3e658e1742e54ee4d7c",
-      "version_git_sha": "fa40fb2",
+      "checksum_sha256": "13024c887ce54023147e7fccddb9607722bd064d69b2b0bbbf8c29816c49ba4a",
+      "version_git_sha": "92a86c3",
       "active_or_archive": "active"
     },
     {
@@ -1017,8 +1017,8 @@
       "nature": "engineering",
       "ip": "創造性歸 Kevin(發明人), AI 為執行工具 (ADR-0032)",
       "header_status": "unified",
-      "checksum_sha256": "d082d234081726c12a008576720bb1d9cb45e85a1df7c74275fd332c20a3892c",
-      "version_git_sha": "b24aad3",
+      "checksum_sha256": "cce4eb6dbcf7f80f135d520afaa94ef3bc155e8cc915bebc723b33863d1041a8",
+      "version_git_sha": "1ddf659",
       "active_or_archive": "active"
     },
     {
