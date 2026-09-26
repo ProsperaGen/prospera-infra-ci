@@ -43,6 +43,9 @@ jobs:
         run: |
           pip install pytest 2>/dev/null || true
           pip install -r requirements.txt 2>/dev/null || true
+          # DNA v2 D3（W4／GAP-20，2026-09-26）：有 pyproject.toml 之庫安裝本庫套件（--no-deps），測試以套件名匯入，
+          # 各庫之「未安裝時以路徑平面載入」過渡相容段方可移除；無 pyproject.toml 者行為不變
+          if [ -f pyproject.toml ]; then pip install --no-deps -e . || { echo "::error::本庫套件安裝失敗（pip install -e .）"; exit 1; }; fi
       - name: pytest
         # ★274 修遮罩：原 `A || B || echo` 使失敗恆被 echo 吞成 exit0（結構不可能紅=假閘）。
         # 改為「跑存在的測試目錄，讓其 exit code 浮現」——通用邏輯非 repo-specific 路徑、
