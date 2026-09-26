@@ -3,3 +3,5 @@
 # 驗證:無機制驗證 ｜IP:創造性歸 Kevin(發明人), AI 為執行工具 (ADR-0032)
 pytest>=7.0.0
 pyyaml>=6.0
+# DNA v2 D3（W4）：CI 經 pip install -r 安裝本庫（套件名 infra_ci、infra_ci_kernel）
+-e .

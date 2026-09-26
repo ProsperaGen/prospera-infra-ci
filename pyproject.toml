@@ -1,0 +1,29 @@
+# Prospera SYSTEM HEADER (ADR-0032/SBOM) | 性質:config(套件定義) | 設計:Kevin 架構(發明人) | 執行:AI 工具(Claude Code) | 驗證:pip install -e . 後 pytest | IP:創造性歸 Kevin(發明人), AI 為執行工具
+# DNA v2 D3／ADR 0373 第 8 項（W4，2026-09-26）：以 package-dir 把套件名對應到本庫目錄，安裝後他庫以套件名匯入，不以 sys.path 硬接本庫路徑。
+# 套件名加庫前綴（infra_ci），避免與他庫同名模組（tenant_storage、publish_line_card、agents 等）在同一環境衝突；沿用 W4-P01、W4-os-1 作法。
+# 庫內既有平面匯入（以本庫目錄在 sys.path 為前提）不在本次範圍，照舊可用。
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "prospera-infra-ci"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+[tool.setuptools]
+include-package-data = false
+packages = [
+    "infra_ci",
+    "infra_ci.fitness",
+    "infra_ci.hooks",
+    "infra_ci.scripts",
+    "infra_ci.tools",
+    "infra_ci_kernel",
+    "infra_ci_kernel.governance",
+    "infra_ci_kernel.registry",
+]
+
+[tool.setuptools.package-dir]
+infra_ci = "."
+infra_ci_kernel = "02_kernel"

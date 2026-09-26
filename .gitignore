@@ -15,3 +15,6 @@ health_*.json
 *.secret
 hooks/prepush_cost_ledger.jsonl
 hooks/prepush_excursion_ledger.jsonl
+
+# pip install -e . 產生之套件中繼資料（W4）
+*.egg-info/
