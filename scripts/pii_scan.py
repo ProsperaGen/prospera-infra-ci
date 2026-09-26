@@ -42,6 +42,22 @@ PATTERNS = [
     ("email", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"), "email"),
 ]
 
+# ★手機樣式落在長十六進位記號（sha256 校驗碼、git 提交碼等 ≥32 字元）之內者不是電話——
+#   2026-09-26 SYSTEM_INVENTORY.json 之 checksum_sha256「…d0940779905b…」實際誤判過（GOVERNANCE_PLAN 波 5）。
+#   只排除「整段皆十六進位且長度 ≥32」之記號，一般文字中之手機號碼照擋。
+_HEX_TOKEN_MIN = 32
+
+
+def _inside_hex_token(line: str, start: int, end: int) -> bool:
+    hexd = "0123456789abcdefABCDEF"
+    a, b = start, end
+    while a > 0 and line[a - 1] in hexd:
+        a -= 1
+    while b < len(line) and line[b] in hexd:
+        b += 1
+    return b - a >= _HEX_TOKEN_MIN
+
+
 # email 之機構／範例網域白名單（非個人 PII）
 EMAIL_SAFE = re.compile(
     r"@((.*\.)?github\.com|example\.(com|org|net)|test\.|localhost|"
@@ -64,6 +80,8 @@ def scan_text(text: str, name: str = "") -> list[tuple]:
             for m in rx.finditer(line):
                 s = m.group(0)
                 if kind == "email" and EMAIL_SAFE.search(s):
+                    continue
+                if kind == "mobile" and _inside_hex_token(line, m.start(), m.end()):
                     continue
                 out.append((kind, label, i, _redact(s)))
     return out
@@ -104,13 +122,18 @@ def _selftest() -> int:
     assert not scan_text("寄到 noreply@users.noreply.github.com 或 a@example.com")
     # ★真陰 4：SSH remote（git@github.com:org/repo）非 email——infra-ci 實際誤判過
     assert not scan_text("git@github.com:ProsperaGen/prospera-os.git")
+    # ★真陰 6：sha256 校驗碼內之 09 開頭 10 位數字不是手機（實際誤判過）
+    assert not scan_text('"checksum_sha256": "d09344d0ecd417c0940779905bf9da396c4f5d961967b85d9291854105784d56"')
+    # ★真陽（對照真陰 6）：一般文字中、與字母相鄰之手機號碼照擋
+    assert scan_text("電話0912345678號")
+    assert scan_text("ref-a0912345678")  # 前接十六進位字母但整段不足 32 字元 → 仍擋
     # ★真陰 5：豁免標記整檔跳過
     assert not scan_text("PII-SCAN-ALLOW\n電話 0912345678")
     # ★遮罩：命中內容不得完整出現於輸出
     red = scan_text("電話 0912345678")[0][3]
     assert "0912345678" not in red, "★掃描器自身洩漏 PII"
     print("[pii_scan] selftest PASS — 真陽 4（身分證/手機/LINE uid/email）"
-          "／真陰 5（統編·法人名·代表人姓名＝業務事實、epoch 時戳、範例 email、SSH remote、豁免標記）；遮罩生效")
+          "／真陰 6（統編·法人名·代表人姓名＝業務事實、epoch 時戳、範例 email、SSH remote、sha256 校驗碼、豁免標記）；遮罩生效")
     return 0
 
 
