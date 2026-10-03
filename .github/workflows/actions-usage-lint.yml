@@ -24,18 +24,18 @@ jobs:
     steps:
       # 呼叫端 repo（要被掃描的 workflows）→ 取到 ./ 的 .github/workflows
       - name: Checkout caller repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # infra-ci（lint 腳本所在）→ 取到 .lint-infra/
       - name: Checkout infra-ci (lint script)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ProsperaGen/prospera-infra-ci
           ref: main
           path: .lint-infra
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.11'
 
