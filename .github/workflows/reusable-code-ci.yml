@@ -12,6 +12,11 @@ on:
         required: false
         default: false
         type: boolean
+      extra_test_paths:
+        # 空白分隔之額外測試目錄（例：website-content/tests products/cmg/content-matrix-generator/tests）；僅 collect_root_tests=true 時併入收集（IN-37 W5）
+        required: false
+        default: ''
+        type: string
       strict_tests:
         # true 時 pytest job 失敗必擋（關閉 continue-on-error）。
         # ★與 ADR-0251（P-LEAN 品質類降 L1 不阻 commit）之關係：採**單庫例外**，ADR 本體不改
@@ -53,6 +58,7 @@ jobs:
         # 品質類非阻斷），但紅可見（真陰真陽 run 為證）。
         env:
           COLLECT_ROOT_TESTS: ${{ inputs.collect_root_tests }}
+          EXTRA_TEST_PATHS: ${{ inputs.extra_test_paths }}
         run: |
           set -e
           if [ "$COLLECT_ROOT_TESTS" != "true" ]; then
@@ -72,6 +78,7 @@ jobs:
           if [ -d 11_tests ]; then TARGETS="$TARGETS 11_tests"; fi
           if [ -d tests ]; then TARGETS="$TARGETS tests"; fi
           ROOTT="$(ls -1 test_*.py 2>/dev/null || true) $(ls -1 *_test.py 2>/dev/null || true)"
+          for d in $EXTRA_TEST_PATHS; do if [ -e "$d" ]; then TARGETS="$TARGETS $d"; else echo "::error::extra_test_paths 指定之 $d 不存在"; exit 1; fi; done
           TARGETS="$(echo $TARGETS $ROOTT | xargs || true)"
           if [ -z "$TARGETS" ]; then
             echo "✅ 三處皆無測試目標，跳過"
