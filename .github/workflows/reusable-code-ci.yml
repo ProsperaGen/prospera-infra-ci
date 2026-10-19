@@ -25,6 +25,21 @@ on:
         required: false
         default: false
         type: boolean
+      # ★2026-10-19（v2，外部工程師 A）：私有依賴。default 空白 ⇒ 不取權杖，安裝步驟與改前逐字相同（他庫零行為變更，同 S1-A 做法）。
+      private_repos:
+        # 逗號分隔之同 org 私有庫名（例：prospera-engine-runtime）：以 GitHub App 簽發唯讀權杖，pip 安裝 requirements.txt 內之 git 依賴時使用
+        required: false
+        default: ''
+        type: string
+      app_id:
+        # GitHub App 編號（呼叫端傳 vars.PROSPERA_AI_APP_ID）；private_repos 非空白時必填
+        required: false
+        default: ''
+        type: string
+    secrets:
+      app_private_key:
+        # GitHub App 私鑰（呼叫端傳 secrets.PROSPERA_AI_APP_PRIVATE_KEY）；private_repos 非空白時必填
+        required: false
 
 concurrency:
   group: code-ci-${{ github.ref }}
@@ -37,17 +52,37 @@ jobs:
     continue-on-error: ${{ !inputs.strict_tests }}
     if: github.actor != 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 1
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: ${{ inputs.python-version }}
           # cache: 'pip' 移除：無 requirements.txt/pyproject.toml 的 repo 會硬掛 setup（fleet CI 紅根因，2026-07-05）
+      - name: 私有依賴權杖（唯讀，僅 private_repos 非空白時）
+        id: app_token
+        if: inputs.private_repos != ''
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ inputs.app_id }}
+          private-key: ${{ secrets.app_private_key }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ inputs.private_repos }}
+          permission-contents: read
       - name: Install deps
+        env:
+          PRIVATE_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           pip install pytest 2>/dev/null || true
-          pip install -r requirements.txt 2>/dev/null || true
+          if [ -n "$PRIVATE_TOKEN" ]; then
+            # 權杖只經環境變數給這一個指令之 git（不寫入 ~/.gitconfig，後續測試讀不到）；裝不到即失敗，不吞錯
+            GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0="url.https://x-access-token:${PRIVATE_TOKEN}@github.com/.insteadOf" \
+            GIT_CONFIG_VALUE_0="https://github.com/" \
+              pip install -r requirements.txt || { echo "::error::requirements.txt 安裝失敗（含私有依賴）"; exit 1; }
+          else
+            pip install -r requirements.txt 2>/dev/null || true   # 預設路徑：同改前
+          fi
           # DNA v2 D3（W4／GAP-20，2026-09-26）：有 pyproject.toml 之庫安裝本庫套件（--no-deps），測試以套件名匯入，
           # 各庫之「未安裝時以路徑平面載入」過渡相容段方可移除；無 pyproject.toml 者行為不變
           if [ -f pyproject.toml ]; then pip install --no-deps -e . || { echo "::error::本庫套件安裝失敗（pip install -e .）"; exit 1; }; fi
@@ -103,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor != 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 1
       - name: LLM Chokepoint Guard
@@ -138,7 +173,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           fetch-depth: 0
       - name: gitleaks（本次變更範圍）
@@ -158,6 +193,7 @@ jobs:
           fi
           VER=8.18.4
           curl -sSL -o /tmp/gl.tar.gz "https://github.com/gitleaks/gitleaks/releases/download/v${VER}/gitleaks_${VER}_linux_x64.tar.gz"
+          echo "ba6dbb656933921c775ee5a2d1c13a91046e7952e9d919f9bac4cec61d628e7d  /tmp/gl.tar.gz" | sha256sum -c -   # 官方 checksums.txt 之 linux_x64；換 VER 時一併更新
           tar -xzf /tmp/gl.tar.gz -C /tmp gitleaks && sudo mv /tmp/gitleaks /usr/local/bin/
           CFG=""
           if [ -f .gitleaks.toml ]; then CFG="--config .gitleaks.toml"; fi
