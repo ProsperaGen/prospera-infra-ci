@@ -27,10 +27,18 @@ on:
         type: boolean
       # ★2026-10-19（v2，外部工程師 A）：私有依賴。default 空白 ⇒ 不取權杖，安裝步驟與改前逐字相同（他庫零行為變更，同 S1-A 做法）。
       private_repos:
-        # 逗號分隔之同 org 私有庫名（例：prospera-engine-runtime）：以 GitHub App 簽發唯讀權杖，pip 安裝 requirements.txt 內之 git 依賴時使用
+        # 逗號分隔（不加空白）之同 org 私有庫名（例：prospera-engine-runtime,prospera-data-architecture）：以 GitHub App 唯讀權杖
+        # 取各庫 main，放在本庫旁（../<庫名>，同本機與各庫映像之相鄰目錄配置），以 .pth 加入匯入路徑（有 src/ 者加 src/）。
+        # 2026-10-21 改：原為「pip 安裝 requirements.txt 內之 git 依賴時用權杖」，但各庫 requirements.txt 改為附雜湊（pip 雜湊模式不收 git 依賴）後不再適用。
+        # 不以套件名安裝（私有庫不在公開 PyPI，防依賴混淆）、不經建置後端；私有庫之第三方依賴須在本庫 requirements.txt。
         required: false
         default: ''
         type: string
+      postgres:
+        # true 時於測試前啟動測試用 PostgreSQL（只綁本機），pytest 以環境變數 PROSPERA_TEST_PG_URL 連線（2026-10-21，v2）
+        required: false
+        default: false
+        type: boolean
       app_id:
         # GitHub App 編號（呼叫端傳 vars.PROSPERA_AI_APP_ID）；private_repos 非空白時必填
         required: false
@@ -70,22 +78,43 @@ jobs:
           repositories: ${{ inputs.private_repos }}
           permission-contents: read
       - name: Install deps
-        env:
-          PRIVATE_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           pip install pytest 2>/dev/null || true
-          if [ -n "$PRIVATE_TOKEN" ]; then
-            # 權杖只經環境變數給這一個指令之 git（不寫入 ~/.gitconfig，後續測試讀不到）；裝不到即失敗，不吞錯
-            GIT_CONFIG_COUNT=1 \
-            GIT_CONFIG_KEY_0="url.https://x-access-token:${PRIVATE_TOKEN}@github.com/.insteadOf" \
-            GIT_CONFIG_VALUE_0="https://github.com/" \
-              pip install -r requirements.txt || { echo "::error::requirements.txt 安裝失敗（含私有依賴）"; exit 1; }
-          else
-            pip install -r requirements.txt 2>/dev/null || true   # 預設路徑：同改前
-          fi
+          pip install -r requirements.txt 2>/dev/null || true
           # DNA v2 D3（W4／GAP-20，2026-09-26）：有 pyproject.toml 之庫安裝本庫套件（--no-deps），測試以套件名匯入，
           # 各庫之「未安裝時以路徑平面載入」過渡相容段方可移除；無 pyproject.toml 者行為不變
           if [ -f pyproject.toml ]; then pip install --no-deps -e . || { echo "::error::本庫套件安裝失敗（pip install -e .）"; exit 1; }; fi
+      - name: 私有依賴（取各庫 main 放在本庫旁，加入匯入路徑；僅 private_repos 非空白時）
+        if: inputs.private_repos != ''
+        env:
+          PRIVATE_REPOS: ${{ inputs.private_repos }}
+          PRIVATE_TOKEN: ${{ steps.app_token.outputs.token }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          set -euo pipefail
+          PTH="$(python -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')/prospera_private.pth"
+          : > "$PTH"
+          for name in ${PRIVATE_REPOS//,/ }; do
+            dir="$(dirname "$GITHUB_WORKSPACE")/$name"
+            # 權杖只經環境變數給這一個 git 指令（不寫入任何 git 設定檔，後續測試讀不到）；取不到即失敗，不吞錯
+            GIT_CONFIG_COUNT=1 \
+            GIT_CONFIG_KEY_0="url.https://x-access-token:${PRIVATE_TOKEN}@github.com/.insteadOf" \
+            GIT_CONFIG_VALUE_0="https://github.com/" \
+              git clone -q --depth 1 "https://github.com/$OWNER/$name" "$dir" || { echo "::error::私有庫 $name 取不到（App 須能讀此庫）"; exit 1; }
+            if [ -d "$dir/src" ]; then echo "$dir/src"; else echo "$dir"; fi >> "$PTH"
+            echo "$name：$(git -C "$dir" rev-parse HEAD)"   # 本次測到之私有庫版本
+          done
+      - name: 測試用 PostgreSQL（僅 postgres=true；只綁本機）
+        if: inputs.postgres
+        run: |
+          set -euo pipefail
+          # 版本同 prospera-os deploy/compose.yaml（digest 釘死）
+          docker run -d --name ci-pg -p 127.0.0.1:5432:5432 -e POSTGRES_PASSWORD=test \
+            postgres:17@sha256:2d2b8998d31037bf721cfdf764d76ba74171b4fab3431b7f72c27c56ddbdf9e3
+          # 經 TCP 檢查：映像初始化時之暫時伺服器只聽 Unix socket，TCP 通了才是正式啟動
+          for _ in $(seq 60); do docker exec ci-pg pg_isready -q -h 127.0.0.1 -U postgres && break; sleep 1; done
+          docker exec ci-pg pg_isready -h 127.0.0.1 -U postgres
+          echo "PROSPERA_TEST_PG_URL=postgresql://postgres:test@127.0.0.1:5432/postgres" >> "$GITHUB_ENV"
       - name: pytest
         # ★274 修遮罩：原 `A || B || echo` 使失敗恆被 echo 吞成 exit0（結構不可能紅=假閘）。
         # 改為「跑存在的測試目錄，讓其 exit code 浮現」——通用邏輯非 repo-specific 路徑、
