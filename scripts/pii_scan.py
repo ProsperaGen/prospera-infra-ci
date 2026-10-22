@@ -115,7 +115,7 @@ def _selftest() -> int:
     assert scan_text("uid Uabcdef0123456789abcdef0123456789")
     assert scan_text("聯絡 someone@gmail.com")
     # ★真陰 1：業務事實不得被判 PII（統編 8 位／法人全名／登記代表人姓名）
-    assert not scan_text("統一編號 80189440 香華天股份有限公司 代表人 黃錦春")
+    assert not scan_text("統一編號 80189440 香華天股份有限公司 代表人 林合成")
     # ★真陰 2：epoch 時戳不得被誤判為手機（實際誤判過）
     assert not scan_text('{"ts": 1784177847839, "topic": "抗老"}')
     # ★真陰 3：範例／機構 email 放行
