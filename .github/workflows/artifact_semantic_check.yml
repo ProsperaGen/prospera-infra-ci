@@ -10,7 +10,7 @@ jobs:
     if: ${{ !contains(github.event.head_commit.message, '[hold]') && !contains(github.ref, 'hold') }}  # PROSPERA_HOLD_GUARD ADR-0169
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           token: ${{ secrets.PROSPERA_DASHBOARD_TOKEN }}
           fetch-depth: 0   # gate-design 修正（ADR-0061）：需完整歷史以對 base 算 PR 真正改動
